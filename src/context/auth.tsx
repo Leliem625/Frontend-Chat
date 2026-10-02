@@ -1,0 +1,56 @@
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+
+import * as authApi from "@/api/auth";
+import { clearTokens, getAccessToken, saveTokens } from "@/storage/token";
+import type { User } from "@/types/api";
+
+type AuthContextValue = {
+  user: User | null;
+  loading: boolean; // Đang kiểm tra token đã lưu khi mở app
+  login: (username: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
+};
+
+const AuthContext = createContext<AuthContextValue | null>(null);
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // Mở app: nếu còn token thì lấy lại thông tin người dùng
+  useEffect(() => {
+    (async () => {
+      try {
+        if (await getAccessToken()) {
+          setUser(await authApi.getMe());
+        }
+      } catch {
+        await clearTokens();
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  async function login(username: string, password: string) {
+    const { accessToken, refreshToken, ...loggedInUser } = await authApi.login(username, password);
+    await saveTokens(accessToken, refreshToken);
+    setUser(loggedInUser);
+  }
+
+  async function logout() {
+    // TODO: gọi /api/auth/logout để xoá session trên backend
+    await clearTokens();
+    setUser(null);
+  }
+
+  return <AuthContext.Provider value={{ user, loading, login, logout }}>{children}</AuthContext.Provider>;
+}
+
+export function useAuth() {
+  const value = useContext(AuthContext);
+  if (!value) {
+    throw new Error("useAuth phải được dùng bên trong AuthProvider");
+  }
+  return value;
+}
