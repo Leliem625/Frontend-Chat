@@ -20,3 +20,7 @@ export async function clearTokens() {
   await SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY);
   await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
 }
+
+export async function saveAccessToken(accessToken: string) {
+  await SecureStore.setItemAsync(ACCESS_TOKEN_KEY, accessToken);
+}

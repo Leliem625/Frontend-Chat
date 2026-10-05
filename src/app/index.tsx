@@ -3,7 +3,7 @@ import { ActivityIndicator, View } from "react-native";
 
 import { useAuth } from "@/context/auth";
 
-// Điểm vào app: đã đăng nhập thì vào danh sách trò chuyện, chưa thì vào màn hình đăng nhập
+// Điểm vào app: đã đăng nhập thì vào danh sách trò chuyện, chưa thì vào màn hình giới thiệu (welcome)
 export default function Index() {
   const { user, loading } = useAuth();
 
@@ -14,5 +14,5 @@ export default function Index() {
       </View>
     );
   }
-  return <Redirect href={user ? "/(tabs)" : "/(auth)/login"} />;
+  return <Redirect href={user ? "/(tabs)" : "/(auth)/welcome"} />;
 }

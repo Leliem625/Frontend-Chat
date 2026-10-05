@@ -2,9 +2,13 @@ import { Stack } from "expo-router";
 
 export default function AuthLayout() {
   return (
-    <Stack>
-      <Stack.Screen name="login" options={{ title: "Đăng nhập" }} />
-      <Stack.Screen name="register" options={{ title: "Đăng ký" }} />
+    <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="welcome" />
+      <Stack.Screen name="login" />
+      <Stack.Screen name="register" />
+      <Stack.Screen name="forgot-password" />
+      <Stack.Screen name="verify-otp" />
+      <Stack.Screen name="reset-password" />
     </Stack>
   );
 }
