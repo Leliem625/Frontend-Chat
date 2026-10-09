@@ -2,11 +2,11 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { Text, TouchableOpacity, View } from "react-native";
 
-import { DefaultAvatar } from "./DefaultAvatar";
+import { DefaultAvatar } from "@/components/common";
 
 const APP_LOGO = require("../../../assets/images/messenger_app_icon.png");
 
-interface ChatsHeaderProps {
+export interface ChatsHeaderProps {
   avatarUrl?: string;
   onCameraPress?: () => void;
   onNewChatPress?: () => void;

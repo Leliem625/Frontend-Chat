@@ -5,16 +5,20 @@
   "dependencies": {
     "@expo/ui": "~57.0.21",
     "@expo/vector-icons": "^15.0.2",
+    "clsx": "^2.1.1",
     "expo": "~57.0.26",
     "expo-constants": "~57.0.20",
     "expo-device": "~57.0.2",
+    "expo-file-system": "~57.0.7",
     "expo-font": "~57.0.4",
     "expo-glass-effect": "~57.0.4",
     "expo-image": "~57.0.5",
     "expo-linear-gradient": "~57.0.2",
     "expo-linking": "~57.0.11",
+    "expo-media-library": "~57.0.5",
     "expo-router": "~57.0.24",
     "expo-secure-store": "~57.0.4",
+    "expo-sharing": "~57.0.22",
     "expo-splash-screen": "~57.0.9",
     "expo-status-bar": "~57.0.1",
     "expo-symbols": "~57.0.3",
@@ -33,6 +37,7 @@
     "react-native-web": "~0.21.0",
     "react-native-worklets": "0.10.1",
     "socket.io-client": "^4.8.4",
+    "tailwind-merge": "^3.7.0",
     "tailwindcss": "^3.4.17"
   },
   "devDependencies": {
@@ -49,7 +54,9 @@
     "ios": "expo start --ios --port 8082",
     "web": "expo start --web --port 8082",
     "lint": "expo lint",
-    "format": "prettier --write ."
+    "lint:fix": "expo lint --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "private": true
 }

@@ -1,7 +1,7 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { TextInput, TouchableOpacity, View } from "react-native";
 
-interface ChatsSearchBarProps {
+export interface ChatsSearchBarProps {
   value: string;
   onChangeText: (text: string) => void;
   onVoiceSearchPress?: () => void;

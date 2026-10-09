@@ -1,7 +1,7 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { TouchableOpacity, View } from "react-native";
 
-interface NewChatFabProps {
+export interface NewChatFabProps {
   onPress?: () => void;
 }
 

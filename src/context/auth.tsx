@@ -26,11 +26,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-  setOnSessionExpired(() => {
-    disconnectSocket();
-    setUser(null);
-  });
-}, []);
+    setOnSessionExpired(() => {
+      disconnectSocket();
+      setUser(null);
+    });
+  }, []);
   // Mở app: nếu còn token thì lấy lại thông tin người dùng
   useEffect(() => {
     (async () => {
@@ -53,8 +53,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       password
     );
     await saveTokens(accessToken, refreshToken);
-    setUser(loggedInUser);
     await connectSocket();
+    setUser(loggedInUser);
   }
 
   async function logout() {

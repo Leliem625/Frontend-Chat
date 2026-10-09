@@ -1,10 +1,12 @@
 import { API_URL } from "@/config";
 // import { getAccessToken } from "@/storage/token";
-import { clearTokens, getAccessToken, getRefreshToken, saveAccessToken } from "@/storage/token";
+import {
+  clearTokens,
+  getAccessToken,
+  getRefreshToken,
+  saveAccessToken,
+} from "@/storage/token";
 import type { ApiResponse } from "@/types/api";
-
-
-
 
 export class ApiError extends Error {
   constructor(
@@ -18,7 +20,10 @@ export class ApiError extends Error {
 // Gọi API backend: tự gắn access token, trả về phần `data`, ném ApiError khi backend báo lỗi.
 // TODO: khi nhận 401 thì gọi /api/auth/refresh-token để lấy access token mới rồi gọi lại.
 export async function api<T>(
-path: string, options: RequestInit = {},  retried = false): Promise<T> {
+  path: string,
+  options: RequestInit = {},
+  retried = false
+): Promise<T> {
   const token = await getAccessToken();
   const isFormData = options.body instanceof FormData;
 
@@ -45,11 +50,14 @@ path: string, options: RequestInit = {},  retried = false): Promise<T> {
   if (response.status === 401 && !NO_REFRESH_PATHS.includes(path) && !retried) {
     const newToken = await refreshToken();
     if (newToken) {
-      return api<T>(path, options, true); 
+      return api<T>(path, options, true);
     }
     await clearTokens();
     onSessionExpired?.();
-    throw new ApiError("Phi√™n ƒëƒÉng nh·∫≠p ƒë√£ h·∫øt h·∫°n, vui l√≤ng ƒëƒÉng nh·∫≠p l·∫°i", 401);
+    throw new ApiError(
+      "Phi√™n ƒëƒÉng nh·∫≠p ƒë√£ h·∫øt h·∫°n, vui l√≤ng ƒëƒÉng nh·∫≠p l·∫°i",
+      401
+    );
   }
 
   const json = (await response
@@ -88,7 +96,11 @@ export function get<T>(path: string, body?: unknown) {
     body: body === undefined ? undefined : JSON.stringify(body),
   });
 }
-const NO_REFRESH_PATHS = ["/api/auth/login", "/api/auth/register", "/api/auth/refresh-token"];
+const NO_REFRESH_PATHS = [
+  "/api/auth/login",
+  "/api/auth/register",
+  "/api/auth/refresh-token",
+];
 
 // AuthProvider ƒëƒÉng k√Ω h√†m n√†y ƒë·ªÉ b·ªã ƒëƒÉng xu·∫•t khi refresh token c≈©ng h·∫øt h·∫°n
 let onSessionExpired: (() => void) | null = null;
@@ -96,30 +108,27 @@ export function setOnSessionExpired(callback: () => void) {
   onSessionExpired = callback;
 }
 
-// Nhi·ªÅu API c√πng nh·∫≠n 401 m·ªôt l√∫c th√¨ ch·ªâ g·ªçi refresh m·ªôt l·∫ßn, c√°c API kh√°c ch·ªù chung k·∫øt qu·∫£
 let refreshPromise: Promise<string | null> | null = null;
 async function refreshToken(): Promise<string | null> {
-  if(!refreshPromise){
-    refreshPromise = (
-      async() => {
-        try{
-          const refreshToken = await getRefreshToken();
-          if(!refreshToken) return null;
-          const response = await fetch(API_URL + "/api/auth/refresh-token", {
-            method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({refreshToken})
-          })
-          const json = await response.json().catch(() => null);
-          await saveAccessToken(json.data.accessToken)
-          return json.data.accessToken as string;
-        } catch{
-          return null;
-        } finally{
-          refreshPromise = null;
-        }
+  if (!refreshPromise) {
+    refreshPromise = (async () => {
+      try {
+        const refreshToken = await getRefreshToken();
+        if (!refreshToken) return null;
+        const response = await fetch(API_URL + "/api/auth/refresh-token", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ refreshToken }),
+        });
+        const json = await response.json().catch(() => null);
+        await saveAccessToken(json.data.accessToken);
+        return json.data.accessToken as string;
+      } catch {
+        return null;
+      } finally {
+        refreshPromise = null;
       }
-    )();
+    })();
   }
   return refreshPromise;
 }

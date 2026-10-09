@@ -5,3 +5,5 @@ dist
 build
 package-lock.json
 .env*
+android
+ios

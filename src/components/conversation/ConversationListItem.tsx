@@ -2,10 +2,11 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { Text, TouchableOpacity, View } from "react-native";
 
-import { Avatar } from "./Avatar";
+import { Avatar, StatusChat } from "@/components/common";
+import { useOnlineUsers } from "@/hook/useOnlineUser";
 import { ConversationItemData } from "./types";
 
-interface ConversationListItemProps {
+export interface ConversationListItemProps {
   item: ConversationItemData;
   onPress: (id: string) => void;
 }
@@ -14,6 +15,13 @@ export function ConversationListItem({
   item,
   onPress,
 }: ConversationListItemProps) {
+  const { isOnline } = useOnlineUsers();
+  const userIsOnline = Boolean(
+    (item.userId && isOnline(item.userId)) ||
+    item.isOnline ||
+    isOnline(item.id)
+  );
+
   return (
     <TouchableOpacity
       onPress={() => onPress(item.id)}
@@ -25,15 +33,17 @@ export function ConversationListItem({
         <Avatar
           uri={item.avatar}
           size={56}
-          isOnline={item.isOnline}
+          isOnline={false}
           isGroup={item.isGroup}
         />
 
-        {/* Badge nhóm nhỏ ở góc nếu là nhóm */}
-        {item.isGroup && (
+        {/* Badge nhóm nhỏ ở góc nếu là nhóm, hoặc StatusChat nếu là chat trực tiếp */}
+        {item.isGroup ? (
           <View className="absolute -bottom-0.5 -right-0.5 h-5 w-5 items-center justify-center rounded-full border border-white bg-slate-100 shadow-sm">
             <MaterialIcons name="group" size={12} color="#0084ff" />
           </View>
+        ) : (
+          <StatusChat status={userIsOnline ? "online" : "offline"} />
         )}
       </View>
 

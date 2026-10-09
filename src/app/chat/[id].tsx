@@ -1,68 +1,228 @@
-import { MaterialIcons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   KeyboardAvoidingView,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
   Platform,
   ScrollView,
-  Text,
-  TextInput,
-  TouchableOpacity,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { Avatar } from "@/components/chat";
+import { getListFriend, sendFriendRequest } from "@/api/friend";
+import { getMessages, markSeen, sendMessageContent } from "@/api/message";
+import {
+  ChatDateDivider,
+  ChatEmptyConversation,
+  ChatInputBar,
+  ChatMessageItem,
+  ChatProfileBar,
+  ChatTypingIndicator,
+  DirectMessageItemData,
+  ImageViewerModal,
+} from "@/components/chat";
+import { useAuth } from "@/context/auth";
+import { useOnlineUsers } from "@/hook/useOnlineUser";
+import { getSocket } from "@/socket/socket";
+import type { Attachment, Message, SeenInfo } from "@/types/api";
 
-// Mock tin nhắn mẫu minh họa
-interface ChatMessage {
-  id: string;
-  senderId: string;
-  text: string;
-  time: string;
-  isMe: boolean;
+const PAGE_SIZE = 15;
+
+// Chuyển tin nhắn từ backend -> dữ liệu hiển thị của ChatMessageItem
+function mapMessageToUI(
+  msg: Message,
+  currentUserId: number | undefined,
+  friendAvatar?: string
+): DirectMessageItemData {
+  const isMe = msg.senderId === currentUserId;
+  return {
+    id: String(msg.id),
+    senderId: String(msg.senderId),
+    createdAt: msg.createdAt,
+    text: msg.content || undefined,
+    attachments: msg.attachments,
+    time: new Date(msg.createdAt).toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }),
+    isMe,
+    isSent: isMe,
+    avatar: isMe ? undefined : msg.sender?.avatarUrl || friendAvatar,
+  };
 }
 
 export default function ChatDetailScreen() {
   const router = useRouter();
-  const { id, name, avatar } = useLocalSearchParams<{
+  const scrollViewRef = useRef<ScrollView>(null);
+  const { user } = useAuth();
+  const { isOnline: checkIsOnline } = useOnlineUsers();
+
+  // id = conversationId; name/avatar/userId = thông tin đối phương, truyền từ danh sách chat
+  const { id, name, avatar, userId, isFriend: isFriendParam } = useLocalSearchParams<{
     id: string;
     name?: string;
     avatar?: string;
+    userId?: string;
+    isFriend?: string;
   }>();
 
-  // Thông tin bạn bè trong cuộc trò chuyện (sẽ nạp từ API qua id)
-  const friendName = name || "Bạn bè";
-  const friendAvatar = avatar || null; // Nếu null -> tự động dùng DefaultAvatar
-  const isOnline = true;
+  // Thông tin đối phương (avatar rỗng -> Avatar tự hiện ảnh mặc định)
+  const friendName = name || "Người dùng";
+  const friendAvatar = avatar || undefined;
+
+  // Online phải kiểm tra theo userId của bạn bè, không phải conversationId
+  const isUserOnline = checkIsOnline(userId);
+
+  // Trạng thái bạn bè từ API (nếu param không truyền)
+  const [isFriendFromApi, setIsFriendFromApi] = useState<boolean | null>(null);
+  const [isFriendRequested, setIsFriendRequested] = useState(false);
+
+  // Giá trị tính toán: ưu tiên param, sau đó đến kết quả tra cứu API
+  const isFriend =
+    isFriendParam === "true"
+      ? true
+      : isFriendParam === "false"
+        ? false
+        : isFriendFromApi ?? true;
+
+  useEffect(() => {
+    // Nếu đã có param thì không cần tra cứu API
+    if (isFriendParam === "true" || isFriendParam === "false") return;
+
+    let active = true;
+    getListFriend()
+      .then((friends) => {
+        if (!active || !Array.isArray(friends)) return;
+        const matched = friends.some(
+          (f) =>
+            (userId && String(f.id) === String(userId)) ||
+            (name && f.username.toLowerCase() === name.toLowerCase())
+        );
+        setIsFriendFromApi(matched);
+      })
+      .catch(() => {});
+
+    return () => {
+      active = false;
+    };
+  }, [isFriendParam, userId, name]);
 
   const [inputText, setInputText] = useState("");
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: "1",
-      senderId: "friend",
-      text: "Chào bạn! Chiều nay có rảnh không?",
-      time: "10:30",
-      isMe: false,
-    },
-    {
-      id: "2",
-      senderId: "me",
-      text: "Mình có rảnh, có chuyện gì thế bạn?",
-      time: "10:31",
-      isMe: true,
-    },
-    {
-      id: "3",
-      senderId: "friend",
-      text: "Gặp nhau ở quán cà phê cũ nhé! ☕",
-      time: "10:32",
-      isMe: false,
-    },
-  ]);
+  const [isTyping] = useState(false);
 
-  // TODO: Các hàm xử lý hành động (User tự viết thêm logic gọi API / Socket)
+  // Danh sách tin nhắn (cũ -> mới, tin mới nhất ở dưới cùng)
+  const [messages, setMessages] = useState<DirectMessageItemData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+
+  // Đối phương đã xem đến thời điểm nào (để hiện avatar dưới tin đã xem)
+  const [seenBy, setSeenBy] = useState<SeenInfo[]>([]);
+
+  // Ảnh đang xem toàn màn hình (null = không xem)
+  const [viewingImage, setViewingImage] = useState<Attachment | null>(null);
+
+  // Lần đầu vào màn hình: lấy 15 tin mới nhất rồi cuộn xuống cuối
+  useEffect(() => {
+    if (!id) return;
+    let active = true;
+    (async () => {
+      try {
+        const page = await getMessages(id, PAGE_SIZE);
+        if (!active) return;
+        // Backend trả mới nhất trước -> đảo lại để tin cũ ở trên, tin mới ở dưới
+        setMessages(
+          [...page.messages]
+            .reverse()
+            .map((m) => mapMessageToUI(m, user?.id, friendAvatar))
+        );
+        setNextCursor(page.nextCursor);
+        setHasMore(page.hasMore);
+        setSeenBy(page.seenBy ?? []);
+        setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: false }), 50);
+        // Mình vừa mở xem -> báo cho đối phương
+        markSeen(id).catch((e) => console.warn("Không đánh dấu đã xem được:", e));
+      } catch (error) {
+        console.warn("Không tải được tin nhắn:", error);
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [id, user?.id, friendAvatar]);
+
+  // Đối phương mở xem cuộc trò chuyện này -> cập nhật ngay không cần tải lại
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket || !id) return;
+    const handleSeen = (data: { conversationId: number; seen: SeenInfo }) => {
+      if (String(data.conversationId) !== String(id)) return;
+      setSeenBy((prev) => [
+        ...prev.filter((s) => s.userId !== data.seen.userId),
+        data.seen,
+      ]);
+    };
+    socket.on("message_seen", handleSeen);
+    return () => {
+      socket.off("message_seen", handleSeen);
+    };
+  }, [id]);
+
+  // Trạng thái kiểu Messenger:
+  // - Tin cuối là của đối phương (họ đã trả lời) -> không hiện gì cả
+  // - Avatar "đã xem" chỉ đặt ở tin cuối của mình mà họ đã xem, nếu sau đó họ chưa nhắn gì
+  // - "Đã gửi" chỉ hiện ở tin cuối cùng, khi đó là tin của mình và chưa ai xem
+  const lastMessage = messages[messages.length - 1];
+  const seenAvatarByMessageId = new Map<string, string>();
+  if (lastMessage?.isMe) {
+    for (const seen of seenBy) {
+      // So chuỗi ISO cùng định dạng của backend, tránh new Date() làm sai với phần giây lẻ 6 chữ số
+      const index = messages.findLastIndex(
+        (m) => m.isMe && !!m.createdAt && m.createdAt <= seen.lastSeenAt
+      );
+      if (index < 0) continue;
+      const theyReplied = messages.slice(index + 1).some((m) => !m.isMe);
+      const messageId = messages[index].id;
+      if (!theyReplied && !seenAvatarByMessageId.has(messageId)) {
+        // Chuỗi rỗng = đã xem nhưng không có ảnh -> hiện avatar mặc định
+        seenAvatarByMessageId.set(messageId, seen.avatarUrl || friendAvatar || "");
+      }
+    }
+  }
+
+  // Kéo lên gần đầu danh sách -> tải thêm tin cũ hơn và chèn lên trên
+  const loadOlderMessages = useCallback(async () => {
+    if (!id || !hasMore || !nextCursor || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const page = await getMessages(id, PAGE_SIZE, nextCursor);
+      const older = [...page.messages]
+        .reverse()
+        .map((m) => mapMessageToUI(m, user?.id, friendAvatar));
+      setMessages((prev) => [...older, ...prev]);
+      setNextCursor(page.nextCursor);
+      setHasMore(page.hasMore);
+    } catch (error) {
+      console.warn("Không tải được tin nhắn cũ:", error);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [id, hasMore, nextCursor, loadingMore, user?.id, friendAvatar]);
+
+  const handleScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    if (e.nativeEvent.contentOffset.y < 60) {
+      loadOlderMessages();
+    }
+  };
+
+  // Hành động điều hướng & tương tác
   const handleBack = () => {
     if (router.canGoBack()) {
       router.back();
@@ -83,23 +243,99 @@ export default function ChatDetailScreen() {
     console.log("Xem thông tin cuộc trò chuyện #", id);
   };
 
-  const handleSendMessage = () => {
-    if (!inputText.trim()) return;
+  const handleSend = async () => {
+    const text = inputText.trim();
+    if (!text || !id) return;
 
-    // TODO: Gửi tin nhắn qua API hoặc Socket.io
-    const newMsg: ChatMessage = {
+    // Hiện tin ngay lập tức (chưa có dấu "Đã gửi"), backend lưu xong mới thay bằng tin thật
+    const tempId = `temp-${Date.now()}`;
+    const tempMsg: DirectMessageItemData = {
+      id: tempId,
+      senderId: "me",
+      text,
+      time: new Date().toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      }),
+      isMe: true,
+      isSent: false,
+    };
+
+    setMessages((prev) => [...prev, tempMsg]);
+    setInputText("");
+
+    setTimeout(() => {
+      scrollViewRef.current?.scrollToEnd({ animated: true });
+    }, 100);
+
+    try {
+      const saved = await sendMessageContent(id, text);
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === tempId ? mapMessageToUI(saved, user?.id, friendAvatar) : m
+        )
+      );
+    } catch (error) {
+      // Gửi lỗi: bỏ tin tạm và trả lại nội dung vào ô nhập để gửi lại
+      console.warn("Gửi tin nhắn thất bại:", error);
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
+      setInputText(text);
+    }
+  };
+
+  const handleLike = () => {
+    const likeMsg: DirectMessageItemData = {
       id: Date.now().toString(),
       senderId: "me",
-      text: inputText.trim(),
+      text: "👍",
       time: new Date().toLocaleTimeString([], {
         hour: "2-digit",
         minute: "2-digit",
       }),
       isMe: true,
+      isSent: true,
     };
 
-    setMessages((prev) => [...prev, newMsg]);
-    setInputText("");
+    setMessages((prev) => [...prev, likeMsg]);
+
+    setTimeout(() => {
+      scrollViewRef.current?.scrollToEnd({ animated: true });
+    }, 100);
+  };
+
+  const handleWave = () => {
+    const waveMsg: DirectMessageItemData = {
+      id: Date.now().toString(),
+      senderId: "me",
+      text: "👋",
+      time: new Date().toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+      isMe: true,
+      isSent: true,
+    };
+
+    setMessages((prev) => [...prev, waveMsg]);
+
+    setTimeout(() => {
+      scrollViewRef.current?.scrollToEnd({ animated: true });
+    }, 100);
+  };
+
+  const handleAddFriend = async () => {
+    if (!userId) {
+      setIsFriendRequested(true);
+      return;
+    }
+    try {
+      await sendFriendRequest(Number(userId));
+      setIsFriendRequested(true);
+    } catch (error) {
+      console.warn("Không gửi được lời mời kết bạn:", error);
+      setIsFriendRequested(true);
+    }
   };
 
   return (
@@ -107,184 +343,102 @@ export default function ChatDetailScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <StatusBar style="dark" />
 
-      {/* 1. Header cuộc trò chuyện */}
-      <View className="h-16 flex-row items-center justify-between border-b border-slate-100 bg-white px-3 shadow-sm">
-        {/* Nút Back + Avatar + Tên */}
-        <View className="flex-1 flex-row items-center gap-2">
-          <TouchableOpacity
-            onPress={handleBack}
-            activeOpacity={0.7}
-            className="p-1"
-          >
-            <MaterialIcons name="arrow-back" size={24} color="#0084ff" />
-          </TouchableOpacity>
+      {/* 2. Sub-bar thông tin bạn bè */}
+      <ChatProfileBar
+        name={friendName}
+        avatar={friendAvatar}
+        isOnline={isUserOnline}
+        onBack={handleBack}
+        onCall={handleCall}
+        onVideoCall={handleVideoCall}
+        onInfo={handleInfo}
+      />
 
-          {/* Avatar bạn bè: nếu không có avatar sẽ tự động hiện avatar mặc định Facebook */}
-          <Avatar uri={friendAvatar} size={40} isOnline={isOnline} />
-
-          <View className="ml-1 min-w-0 flex-1">
-            <Text
-              numberOfLines={1}
-              className="text-[16px] font-bold text-slate-900"
-            >
-              {friendName}
-            </Text>
-            <Text className="text-[12px] font-medium text-emerald-600">
-              {isOnline ? "Đang hoạt động" : "Hoạt động gần đây"}
-            </Text>
-          </View>
-        </View>
-
-        {/* Các nút hành động bên phải: Gọi thoại, Gọi video, Thông tin */}
-        <View className="flex-row items-center gap-1">
-          <TouchableOpacity
-            onPress={handleCall}
-            activeOpacity={0.7}
-            className="h-10 w-10 items-center justify-center rounded-full"
-          >
-            <MaterialIcons name="call" size={22} color="#0084ff" />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={handleVideoCall}
-            activeOpacity={0.7}
-            className="h-10 w-10 items-center justify-center rounded-full"
-          >
-            <MaterialIcons name="videocam" size={24} color="#0084ff" />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={handleInfo}
-            activeOpacity={0.7}
-            className="h-10 w-10 items-center justify-center rounded-full"
-          >
-            <MaterialIcons name="info-outline" size={22} color="#0084ff" />
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* 2. Danh sách tin nhắn */}
+      {/* 3. Vùng hiển thị tin nhắn (Chat Timeline) */}
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         className="flex-1"
       >
         <ScrollView
+          ref={scrollViewRef}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 16 }}
+          onScroll={handleScroll}
+          scrollEventThrottle={200}
+          // Giữ nguyên vị trí đang xem khi chèn tin cũ lên trên
+          maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
+          contentContainerStyle={{
+            paddingHorizontal: 16,
+            paddingBottom: 16,
+            flexGrow: 1,
+          }}
         >
-          {/* Card giới thiệu đầu cuộc trò chuyện (Phong cách Messenger) */}
-          <View className="my-6 items-center">
-            {/* Avatar lớn ở đầu đoạn chat */}
-            <Avatar uri={friendAvatar} size={80} />
-            <Text className="mt-3 text-[19px] font-bold text-slate-900">
-              {friendName}
-            </Text>
-            <Text className="mt-0.5 text-[13px] text-slate-500">
-              Các bạn đã kết nối trên Messenger
-            </Text>
-            <Text className="mt-1 text-[12px] text-slate-400">
-              Hãy gửi lời chào để bắt đầu cuộc trò chuyện!
-            </Text>
-          </View>
-
-          {/* Dải phân cách ngày */}
-          <View className="my-4 items-center">
-            <Text className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold text-slate-400">
-              HÔM NAY
-            </Text>
-          </View>
-
-          {/* Danh sách các tin nhắn */}
-          <View className="flex-col gap-2">
-            {messages.map((msg) => {
-              if (msg.isMe) {
-                // Tin nhắn do mình gửi (nằm bên phải)
-                return (
-                  <View key={msg.id} className="flex-row justify-end">
-                    <View className="max-w-[75%] rounded-2xl rounded-tr-sm bg-primary px-3.5 py-2.5 shadow-sm">
-                      <Text className="text-[15px] leading-5 text-white">
-                        {msg.text}
-                      </Text>
-                      <Text className="mt-0.5 text-right text-[10px] text-white/70">
-                        {msg.time}
-                      </Text>
-                    </View>
-                  </View>
-                );
-              }
-
-              // Tin nhắn do bạn bè gửi (nằm bên trái, có kèm Avatar)
-              return (
-                <View
-                  key={msg.id}
-                  className="flex-row items-end justify-start gap-2"
-                >
-                  {/* Avatar bạn bè cạnh tin nhắn */}
-                  <Avatar uri={friendAvatar} size={28} />
-
-                  <View className="max-w-[75%] rounded-2xl rounded-tl-sm bg-slate-100 px-3.5 py-2.5">
-                    <Text className="text-[15px] leading-5 text-slate-900">
-                      {msg.text}
-                    </Text>
-                    <Text className="mt-0.5 text-[10px] text-slate-400">
-                      {msg.time}
-                    </Text>
-                  </View>
+          {/* Trạng thái tải tin nhắn ban đầu */}
+          {loading ? (
+            <View className="flex-1 items-center justify-center py-20">
+              <ActivityIndicator size="large" color="#0084ff" />
+            </View>
+          ) : messages.length === 0 ? (
+            /* Hiển thị khi chưa có tin nhắn nào: Avatar, Tên và trạng thái quan hệ bạn bè */
+            <ChatEmptyConversation
+              name={friendName}
+              avatar={friendAvatar}
+              isFriend={isFriend}
+              onAddFriend={handleAddFriend}
+              onWave={handleWave}
+              isFriendRequested={isFriendRequested}
+            />
+          ) : (
+            <>
+              {loadingMore && (
+                <View className="items-center py-3">
+                  <ActivityIndicator size="small" color="#0084ff" />
                 </View>
-              );
-            })}
-          </View>
+              )}
+
+              {/* Dải phân cách ngày */}
+              <ChatDateDivider label="Hôm nay, 14:20" />
+
+              {/* Danh sách tin nhắn */}
+              <View className="flex-col">
+                {messages.map((msg) => (
+                  <ChatMessageItem
+                    key={msg.id}
+                    message={{
+                      ...msg,
+                      isSent: msg.isSent && msg.id === lastMessage?.id,
+                      seenAvatar: seenAvatarByMessageId.get(msg.id),
+                    }}
+                    onImagePress={(image) => setViewingImage(image)}
+                  />
+                ))}
+              </View>
+
+              {/* Trạng thái đang soạn tin nhắn */}
+              {isTyping && (
+                <ChatTypingIndicator
+                  avatar={friendAvatar}
+                  name={friendName}
+                  visible={isTyping}
+                />
+              )}
+            </>
+          )}
         </ScrollView>
 
-        {/* 3. Khung nhập tin nhắn ở dưới cùng */}
-        <View className="flex-row items-center gap-2 border-t border-slate-100 bg-white px-3 py-2">
-          {/* Cụm nút gửi file / ảnh / mic */}
-          <TouchableOpacity activeOpacity={0.7} className="p-1.5">
-            <MaterialIcons name="add-circle" size={24} color="#0084ff" />
-          </TouchableOpacity>
-
-          <TouchableOpacity activeOpacity={0.7} className="p-1.5">
-            <MaterialIcons name="photo-camera" size={22} color="#0084ff" />
-          </TouchableOpacity>
-
-          <TouchableOpacity activeOpacity={0.7} className="p-1.5">
-            <MaterialIcons name="image" size={22} color="#0084ff" />
-          </TouchableOpacity>
-
-          {/* Ô nhập tin nhắn */}
-          <View className="h-10 flex-1 flex-row items-center rounded-full bg-slate-100 px-3.5">
-            <TextInput
-              className="h-full flex-1 text-[15px] text-slate-900"
-              placeholder="Nhắn tin..."
-              placeholderTextColor="#94a3b8"
-              value={inputText}
-              onChangeText={setInputText}
-            />
-            <TouchableOpacity activeOpacity={0.7} className="p-1">
-              <MaterialIcons
-                name="sentiment-satisfied"
-                size={20}
-                color="#0084ff"
-              />
-            </TouchableOpacity>
-          </View>
-
-          {/* Nút Gửi hoặc Nút Thích (Like Thumbs-up phong cách Messenger) */}
-          {inputText.trim().length > 0 ? (
-            <TouchableOpacity
-              onPress={handleSendMessage}
-              activeOpacity={0.7}
-              className="p-1.5"
-            >
-              <MaterialIcons name="send" size={24} color="#0084ff" />
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity activeOpacity={0.7} className="p-1.5">
-              <MaterialIcons name="thumb-up" size={22} color="#0084ff" />
-            </TouchableOpacity>
-          )}
-        </View>
+        {/* 4. Khung nhập tin nhắn dưới cùng */}
+        <ChatInputBar
+          value={inputText}
+          onChangeText={setInputText}
+          onSend={handleSend}
+          onLike={handleLike}
+          onAttach={() => console.log("Đính kèm tệp")}
+          onPickPhoto={() => console.log("Chọn ảnh")}
+          onEmojiPress={() => console.log("Chọn emoji")}
+        />
       </KeyboardAvoidingView>
+
+      {/* Xem ảnh toàn màn hình + nút tải về */}
+      <ImageViewerModal image={viewingImage} onClose={() => setViewingImage(null)} />
     </SafeAreaView>
   );
 }

@@ -1,5 +1,5 @@
 import { Image } from "expo-image";
-import { useState } from "react";
+import React, { useState } from "react";
 import { View, type ViewStyle } from "react-native";
 
 import { DefaultAvatar } from "./DefaultAvatar";

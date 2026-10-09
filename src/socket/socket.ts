@@ -4,7 +4,6 @@ import { getAccessToken } from "@/storage/token";
 
 let socket: Socket | null = null;
 
-
 export async function connectSocket() {
   if (socket?.connected) {
     return socket;
@@ -17,15 +16,21 @@ export async function connectSocket() {
   socket = io(process.env.EXPO_PUBLIC_SOCKET_URL!, {
     transports: ["websocket"],
     extraHeaders: { Authorization: `Bearer ${token}` },
+    query: { token },
   });
 
-  socket.on("connect", () => console.log("Socket kết nối thành công!, id =", socket?.id));
-  socket.on("connect_error", (e) => console.log("Socket kết nối thất bại:", e.message));
-  socket.on("disconnect", (reason) => console.log("Socket ngắt kết nối:", reason));
+  socket.on("connect", () =>
+    console.log("Socket kết nối thành công!, id =", socket?.id)
+  );
+  socket.on("connect_error", (e) =>
+    console.log("Socket kết nối thất bại:", e.message)
+  );
+  socket.on("disconnect", (reason) =>
+    console.log("Socket ngắt kết nối:", reason)
+  );
 
   return socket;
 }
-
 
 export function disconnectSocket() {
   socket?.disconnect();

@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { getConversations } from "@/api/conversation";
+import { getListFriend } from "@/api/friend";
 import {
   ChatsHeader,
   ChatsSearchBar,
@@ -19,57 +20,12 @@ import {
   FilterTabs,
   FilterType,
   NewChatFab,
-  StoriesCarousel,
-  StoryItem,
-} from "@/components/chat";
+} from "@/components/conversation";
+import { StoriesCarousel, StoryItem } from "@/components/story";
 import { useAuth } from "@/context/auth";
-import type { Conversation } from "@/types/api";
+import { useOnlineUsers } from "@/hook/useOnlineUser";
+import type { Conversation, User } from "@/types/api";
 import { formatConversationTime } from "@/utils/date";
-
-// Mock danh bạ active / stories
-const INITIAL_STORIES: StoryItem[] = [
-  {
-    id: "1",
-    name: "Mai Linh",
-    avatar:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuCdhz9YGFwEPmm-VV8JTFcJc17VCEAnmTpiOai5oAGFv5k1LsDeamTULgfFBiy5SYgKYU6FFIiKmyOFrmPEXmY1HujFfAY-cnUFTUOJ1cXLZL7S9i4aQUPmSo9GlzkJyLyZe8YCKXZDyoZPNX0Si1rWecqC6AILJoFNZPorBDTjTwXEcXaSzkY8o8i6D1warb97TotX-vY1wvzqf5JjAUiZFQH9JkG2lZbLD3sCIMjxoXlsEGbKsItW",
-    isOnline: true,
-    hasStory: true,
-  },
-  {
-    id: "2",
-    name: "Hoàng Nam",
-    avatar:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuDnK0HqOcHzJQZ-NTkkKQxwDyWB-LAFNG2O_LIJaxArR9Zsc8_xQyXvU5oRR6lY8U42OzfMduO2NbVMvYDrHLvZbIPgXT1F2nokOjkF79J3AcEGmPTKbQcT4nZihAcxDFLIKaWRd_-nIgDH5HbpBCHB0G7L9r75jRis6_TwnWZt6rCdDtURY5q59O_UOOVC5t39oUd9s9wi5N4ni-J2RlQOdaHhP23oh9Q8iAomAWoqn4fR5hMq9PFI",
-    isOnline: true,
-    hasStory: true,
-  },
-  {
-    id: "3",
-    name: "Thảo My",
-    avatar:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuDnnR1mRZHhWo7F5WWxj8HLKrJiaeNFTquc-2YRN1rFti41W2Rdov9BmVemAnF8CEyfKPUMLUHD7QCwiD2_aTkBR7NqQAEtG3RKO-9AbCGwf8GKJ70GUXYX_Z8E8WmrIKhs70uwCthr22RAJUO21_egne4iVL1XjNm4qAzYuZmlokqdShCWrBaPjdAJ8p0DkK_jpp5EqZ39bXLo8ByRXyhQ9-taF2_CWDIIjvcZQ7CebDwqkygPlp0l",
-    isOnline: true,
-    hasStory: false,
-  },
-  {
-    id: "4",
-    name: "Minh Đức",
-    avatar:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuCz1R8DnLnqEhYHnbh5r9SeSoTjSUSBBLX_6FwNbTMgu4NlPMpwwWe9WMMJtwJnm6fjieb4uH1L9PKz4fCy5zTCu_EmMfGFpVErgwcAGKGGGhSPI4LGgdIa_vIJ80uGAxI6hP9IRFoMqeE24_pmONMRPbmNVoR6OHrHtOdFT6XQLnYwPRmHKSGnwDlUZmPeILBciuNe-5mO3q7nOeBApGsKy7-MvHyQqv3Iq8iWQUsgvK-ml9X-YDBR",
-    isOnline: true,
-    hasStory: false,
-  },
-  {
-    id: "5",
-    name: "Quỳnh Anh",
-    avatar:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuCwStZTwn645i9SC-CDSCHvcCtLkA0zf1jtjekFXEVDUun5JxL3iz-Bc7RRUzOT-sCPPm3ZVEOcBIOnIZAPQVazKNhh0UW4KkgVTgqPgZB2zYs6bXjB3KrtKUy7facLA9nfATVnTqTWWD059s7Tdw4RS5z_ULzh2NjF9UNyqyOSyGDTxWxGUDaKP0xweHujgyRxLMnlolKLH3EMaE78vdEWS7C0wkRRUa-1ULk5N-7Bp80xPcXBAg1I",
-    isOnline: true,
-    hasStory: true,
-  },
-];
-
 const INITIAL_CONVERSATIONS: ConversationItemData[] = [
   {
     id: "1",
@@ -82,6 +38,7 @@ const INITIAL_CONVERSATIONS: ConversationItemData[] = [
     unreadCount: 2,
     isUnread: true,
     category: "direct",
+    isFriend: true,
   },
   {
     id: "2",
@@ -105,6 +62,7 @@ const INITIAL_CONVERSATIONS: ConversationItemData[] = [
     time: "08:30",
     isRead: true,
     category: "direct",
+    isFriend: true,
   },
   {
     id: "4",
@@ -116,6 +74,7 @@ const INITIAL_CONVERSATIONS: ConversationItemData[] = [
     time: "Hôm qua",
     isRead: true,
     category: "direct",
+    isFriend: false,
   },
   {
     id: "5",
@@ -129,6 +88,7 @@ const INITIAL_CONVERSATIONS: ConversationItemData[] = [
       "https://lh3.googleusercontent.com/aida-public/AB6AXuCN3xHo7DdqQlAzkVoUDzZuPmo0Z09EzqgAOBGiqZtRtCctmVZGxWDmSr0pcHoD2SIsYC76NdAYlZ2JamMP9xyRVBLeOonIQSAl_RLoVcjpz4qh7brdxizZEn771x4ZpDfvkuNGeUYbiXrc3-GwnYh2nMqutEw_1P-l_dmUGnrzmY6b1NnrxuP70PdGvC2Hh4UNODAZHQkvKuXyvbo0JT0hvaSpsllfwZhXyPqThiQKj3Ee6WAoNbcK",
     time: "T2",
     category: "direct",
+    isFriend: true,
   },
   {
     id: "6",
@@ -138,6 +98,7 @@ const INITIAL_CONVERSATIONS: ConversationItemData[] = [
     lastMessage: "Cuộc gọi nhỡ thoại (2)",
     time: "12 thg 5",
     category: "direct",
+    isFriend: false,
   },
   {
     id: "7",
@@ -155,26 +116,39 @@ const INITIAL_CONVERSATIONS: ConversationItemData[] = [
 // Chuyển đổi dữ liệu Backend Conversation -> Giao diện UI
 function mapConversationToUI(
   conv: Conversation,
-  currentUserId?: number
+  currentUserId?: number,
+  friendList: User[] = []
 ): ConversationItemData {
   const isMe = currentUserId && conv.lastMessageSenderId === currentUserId;
+  const isGroup = conv.type === "GROUP";
+
+  // Tìm thông tin bạn bè để lấy userId cho chat 1-1
+  const matchedFriend = !isGroup
+    ? friendList.find(
+        (f) =>
+          f.username === conv.title ||
+          (conv.avatarUrl && f.avatarUrl === conv.avatarUrl)
+      )
+    : undefined;
+
   return {
     id: String(conv.id),
-    name:
-      conv.title || (conv.type === "GROUP" ? "Nhóm trò chuyện" : "Người dùng"),
+    name: conv.title || (isGroup ? "Nhóm trò chuyện" : "Người dùng"),
     avatar: conv.avatarUrl ?? undefined,
     initials:
       !conv.avatarUrl && conv.title
         ? conv.title.substring(0, 2).toUpperCase()
         : undefined,
-    isGroup: conv.type === "GROUP",
-    groupIcon: conv.type === "GROUP" ? "group" : undefined,
+    isGroup,
+    groupIcon: isGroup ? "group" : undefined,
     lastMessage: conv.lastMessage || "Chưa có tin nhắn nào",
     senderPrefix: isMe ? "Bạn:" : undefined,
     time: formatConversationTime(conv.lastMessageAt),
     unreadCount: conv.unreadCount > 0 ? conv.unreadCount : undefined,
     isUnread: conv.unreadCount > 0,
-    category: conv.type === "GROUP" ? "group" : "direct",
+    category: isGroup ? "group" : "direct",
+    userId: matchedFriend?.id,
+    isFriend: !isGroup && Boolean(matchedFriend),
   };
 }
 
@@ -182,7 +156,18 @@ export default function ChatsListScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const currentUserId = user?.id;
-
+  const { isOnline } = useOnlineUsers();
+  const [friends, setFriends] = useState<User[]>([]);
+  const activeStories: StoryItem[] = friends
+    .filter((f) => isOnline(f.id))
+    .map((f) => ({
+      id: String(f.id),
+      name: f.username,
+      avatar: f.avatarUrl ?? "",
+      isOnline: true,
+      hasStory: false,
+    }))
+    .sort((a, b) => Number(b.isOnline) - Number(a.isOnline));
   // State danh sách cuộc trò chuyện: mặc định có sẵn mock data, khi backend có data sẽ cập nhật
   const [conversations, setConversations] = useState<ConversationItemData[]>(
     INITIAL_CONVERSATIONS
@@ -201,11 +186,24 @@ export default function ChatsListScreen() {
         setRefreshing(true);
       }
 
+      let loadedFriends: User[] = [];
+      try {
+        const friendData = await getListFriend();
+        if (Array.isArray(friendData)) {
+          loadedFriends = friendData;
+          setFriends(loadedFriends);
+        }
+      } catch (error) {
+        console.warn("Chưa lấy được danh sách bạn bè:", error);
+      }
+
       try {
         const data = await getConversations();
         if (Array.isArray(data) && data.length > 0) {
           setConversations(
-            data.map((c) => mapConversationToUI(c, currentUserId))
+            data.map((c) =>
+              mapConversationToUI(c, currentUserId, loadedFriends)
+            )
           );
         }
       } catch (error) {
@@ -215,6 +213,7 @@ export default function ChatsListScreen() {
         setRefreshing(false);
       }
     },
+    // Không đưa `friends` vào deps: hàm này tự setFriends -> sẽ tạo vòng lặp gọi API vô hạn
     [currentUserId]
   );
 
@@ -226,8 +225,19 @@ export default function ChatsListScreen() {
   );
 
   // Xử lý các sự kiện người dùng
+  // Truyền kèm name/avatar/userId của đối phương sang màn chat để hiển thị ngay
   const handleOpenChat = (id: string) => {
-    router.push(`/chat/${id}`);
+    const conv = conversations.find((c) => c.id === id);
+    router.push({
+      pathname: "/chat/[id]",
+      params: {
+        id,
+        name: conv?.name ?? "",
+        avatar: conv?.avatar ?? "",
+        userId: conv?.userId != null ? String(conv.userId) : "",
+        isFriend: conv?.isFriend !== undefined ? String(conv.isFriend) : "",
+      },
+    });
   };
 
   const handleCamera = () => {
@@ -309,7 +319,7 @@ export default function ChatsListScreen() {
 
         {/* Stories & Danh bạ đang hoạt động */}
         <StoriesCarousel
-          stories={INITIAL_STORIES}
+          stories={activeStories}
           onAddStory={handleAddStory}
           onStoryPress={handleStoryPress}
         />

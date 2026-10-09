@@ -2,7 +2,7 @@ import { ScrollView, Text, TouchableOpacity, View } from "react-native";
 
 import { FilterType } from "./types";
 
-interface FilterTabsProps {
+export interface FilterTabsProps {
   activeFilter: FilterType;
   onSelectFilter: (filter: FilterType) => void;
 }

@@ -1,11 +1,12 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
+import React from "react";
 import { ScrollView, Text, TouchableOpacity, View } from "react-native";
 
-import { DefaultAvatar } from "./DefaultAvatar";
+import { DefaultAvatar } from "@/components/common";
 import { StoryItem } from "./types";
 
-interface StoriesCarouselProps {
+export interface StoriesCarouselProps {
   stories: StoryItem[];
   userStoryAvatar?: string;
   onAddStory?: () => void;

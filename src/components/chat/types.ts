@@ -1,35 +1,23 @@
-import { MaterialIcons } from "@expo/vector-icons";
+import type { Attachment } from "@/types/api";
 
-export interface StoryItem {
-  id: string;
-  name: string;
-  avatar: string;
-  isOnline: boolean;
-  hasStory: boolean;
+export interface ChatReaction {
+  emoji: string;
+  count?: number;
 }
 
-export type ConversationCategory = "direct" | "group" | "channel";
-
-export interface ConversationItemData {
+export interface DirectMessageItemData {
   id: string;
-  name: string;
-  avatar?: string;
-  initials?: string;
-  isOnline?: boolean;
-  isGroup?: boolean;
-  groupIcon?: keyof typeof MaterialIcons.glyphMap;
-  lastMessage: string;
-  senderPrefix?: string;
+  senderId: string;
+  text?: string;
   time: string;
-  unreadCount?: number;
-  isUnread?: boolean;
-  hasUnreadDot?: boolean;
-  isRead?: boolean;
-  hasAttachment?: boolean;
-  attachmentThumbnail?: string;
-  isMissedCall?: boolean;
+  isMe: boolean;
+  avatar?: string | null;
+  mediaUrl?: string | null;
+  attachments?: Attachment[]; // Ảnh / file đính kèm
+  locationName?: string | null;
+  reactions?: ChatReaction[];
   isSent?: boolean;
-  category: ConversationCategory;
+  seenAvatar?: string | null;
+  seenTime?: string | null;
+  createdAt?: string; // Thời gian gốc từ backend, dùng để so với lúc đối phương xem
 }
-
-export type FilterType = "all" | "unread" | "groups" | "channels";
