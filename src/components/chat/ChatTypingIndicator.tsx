@@ -1,6 +1,6 @@
 import { Image } from "expo-image";
 import React, { useEffect, useState } from "react";
-import { Animated, Text, View } from "react-native";
+import { Animated, StyleSheet, View } from "react-native";
 
 import { DefaultAvatar } from "@/components/common";
 
@@ -74,23 +74,20 @@ export function ChatTypingIndicator({
 
       {/* Bong bóng 3 chấm nhấp nháy */}
       <View className="h-9 w-16 flex-row items-center justify-center gap-1.5 rounded-[18px] rounded-bl-xs bg-slate-100 px-3 shadow-xs">
-        <Animated.View
-          style={{ transform: [{ translateY: dot1 }] }}
-          className="h-2 w-2 rounded-full bg-slate-500"
-        />
-        <Animated.View
-          style={{ transform: [{ translateY: dot2 }] }}
-          className="h-2 w-2 rounded-full bg-slate-500"
-        />
-        <Animated.View
-          style={{ transform: [{ translateY: dot3 }] }}
-          className="h-2 w-2 rounded-full bg-slate-500"
-        />
+        <Animated.View style={[styles.dot, { transform: [{ translateY: dot1 }] }]} />
+        <Animated.View style={[styles.dot, { transform: [{ translateY: dot2 }] }]} />
+        <Animated.View style={[styles.dot, { transform: [{ translateY: dot3 }] }]} />
       </View>
-
-      <Text className="self-center text-[12px] italic text-slate-500">
-        {name} đang soạn tin...
-      </Text>
     </View>
   );
 }
+
+// Chấm dùng style thường: className không áp được lên Animated.View
+const styles = StyleSheet.create({
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#64748b", // slate-500
+  },
+});

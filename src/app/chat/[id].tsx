@@ -1,8 +1,11 @@
+import * as DocumentPicker from "expo-document-picker";
+import * as ImagePicker from "expo-image-picker";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   NativeScrollEvent,
   NativeSyntheticEvent,
@@ -13,7 +16,14 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { getListFriend, sendFriendRequest } from "@/api/friend";
-import { getMessages, markSeen, sendMessageContent } from "@/api/message";
+import { ApiError } from "@/api/client";
+import {
+  getMessages,
+  markSeen,
+  sendMessageContent,
+  sendMessageFiles,
+} from "@/api/message";
+import { uploadFile, type LocalFile } from "@/api/upload";
 import {
   ChatDateDivider,
   ChatEmptyConversation,
@@ -26,10 +36,24 @@ import {
 } from "@/components/chat";
 import { useAuth } from "@/context/auth";
 import { useOnlineUsers } from "@/hook/useOnlineUser";
-import { getSocket } from "@/socket/socket";
+import { getSocket, useSocket } from "@/socket/socket";
 import type { Attachment, Message, SeenInfo } from "@/types/api";
 
 const PAGE_SIZE = 15;
+
+// Giới hạn giống backend (FileStorageServiceImpl, MessageServiceImpl)
+const MAX_ATTACHMENTS = 10;
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
+const MAX_FILE_SIZE = 20 * 1024 * 1024;
+
+// Alert.alert không hiện gì trên web
+function showError(message: string) {
+  if (Platform.OS === "web") {
+    window.alert(message);
+  } else {
+    Alert.alert("Không gửi được", message);
+  }
+}
 
 // Chuyển tin nhắn từ backend -> dữ liệu hiển thị của ChatMessageItem
 function mapMessageToUI(
@@ -60,9 +84,16 @@ export default function ChatDetailScreen() {
   const scrollViewRef = useRef<ScrollView>(null);
   const { user } = useAuth();
   const { isOnline: checkIsOnline } = useOnlineUsers();
+  const socket = useSocket();
 
   // id = conversationId; name/avatar/userId = thông tin đối phương, truyền từ danh sách chat
-  const { id, name, avatar, userId, isFriend: isFriendParam } = useLocalSearchParams<{
+  const {
+    id,
+    name,
+    avatar,
+    userId,
+    isFriend: isFriendParam,
+  } = useLocalSearchParams<{
     id: string;
     name?: string;
     avatar?: string;
@@ -87,7 +118,7 @@ export default function ChatDetailScreen() {
       ? true
       : isFriendParam === "false"
         ? false
-        : isFriendFromApi ?? true;
+        : (isFriendFromApi ?? true);
 
   useEffect(() => {
     // Nếu đã có param thì không cần tra cứu API
@@ -112,7 +143,7 @@ export default function ChatDetailScreen() {
   }, [isFriendParam, userId, name]);
 
   const [inputText, setInputText] = useState("");
-  const [isTyping] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
 
   // Danh sách tin nhắn (cũ -> mới, tin mới nhất ở dưới cùng)
   const [messages, setMessages] = useState<DirectMessageItemData[]>([]);
@@ -127,6 +158,32 @@ export default function ChatDetailScreen() {
   // Ảnh đang xem toàn màn hình (null = không xem)
   const [viewingImage, setViewingImage] = useState<Attachment | null>(null);
 
+  // Đối phương đang soạn tin -> hiện dòng "đang soạn"
+  useEffect(() => {
+    if (!socket || !id) return;
+    // Phòng khi gói "dừng soạn" không tới (họ tắt app, mất mạng): tự ẩn sau 5 giây
+    let hideTimeout: ReturnType<typeof setTimeout> | null = null;
+
+    const handleTyping = (data: {
+      conversationId: number;
+      userId: number;
+      isTyping: boolean;
+    }) => {
+      if (String(data.conversationId) !== String(id) || data.userId === user?.id) return;
+      if (hideTimeout) clearTimeout(hideTimeout);
+      setIsTyping(data.isTyping);
+      if (data.isTyping) {
+        hideTimeout = setTimeout(() => setIsTyping(false), 5000);
+        setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+      }
+    };
+
+    socket.on("typing", handleTyping);
+    return () => {
+      socket.off("typing", handleTyping);
+      if (hideTimeout) clearTimeout(hideTimeout);
+    };
+  }, [socket, id, user?.id]);
   // Lần đầu vào màn hình: lấy 15 tin mới nhất rồi cuộn xuống cuối
   useEffect(() => {
     if (!id) return;
@@ -144,9 +201,14 @@ export default function ChatDetailScreen() {
         setNextCursor(page.nextCursor);
         setHasMore(page.hasMore);
         setSeenBy(page.seenBy ?? []);
-        setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: false }), 50);
+        setTimeout(
+          () => scrollViewRef.current?.scrollToEnd({ animated: false }),
+          50
+        );
         // Mình vừa mở xem -> báo cho đối phương
-        markSeen(id).catch((e) => console.warn("Không đánh dấu đã xem được:", e));
+        markSeen(id).catch((e) =>
+          console.warn("Không đánh dấu đã xem được:", e)
+        );
       } catch (error) {
         console.warn("Không tải được tin nhắn:", error);
       } finally {
@@ -160,7 +222,6 @@ export default function ChatDetailScreen() {
 
   // Đối phương mở xem cuộc trò chuyện này -> cập nhật ngay không cần tải lại
   useEffect(() => {
-    const socket = getSocket();
     if (!socket || !id) return;
     const handleSeen = (data: { conversationId: number; seen: SeenInfo }) => {
       if (String(data.conversationId) !== String(id)) return;
@@ -173,12 +234,37 @@ export default function ChatDetailScreen() {
     return () => {
       socket.off("message_seen", handleSeen);
     };
-  }, [id]);
+  }, [socket, id]);
 
-  // Trạng thái kiểu Messenger:
-  // - Tin cuối là của đối phương (họ đã trả lời) -> không hiện gì cả
-  // - Avatar "đã xem" chỉ đặt ở tin cuối của mình mà họ đã xem, nếu sau đó họ chưa nhắn gì
-  // - "Đã gửi" chỉ hiện ở tin cuối cùng, khi đó là tin của mình và chưa ai xem
+  // Có tin nhắn mới qua socket -> thêm vào cuối nếu chưa có
+  useEffect(() => {
+    if (!socket || !id) return;
+    const handleNewMessage = (msg: Message) => {
+      if (String(msg.conversationId) !== String(id)) return;
+      setMessages((prev) =>
+        prev.some((m) => m.id === String(msg.id))
+          ? prev // tin mình vừa gửi, REST đã thêm rồi
+          : [...prev, mapMessageToUI(msg, user?.id, friendAvatar)]
+      );
+      if (msg.senderId !== user?.id) {
+        // Họ đã gửi xong -> ẩn "đang soạn" (phòng gói dừng soạn đến muộn)
+        setIsTyping(false);
+        // Đang mở màn này nên coi như đã xem luôn
+        markSeen(id).catch((e) =>
+          console.warn("Không đánh dấu đã xem được:", e)
+        );
+      }
+      setTimeout(
+        () => scrollViewRef.current?.scrollToEnd({ animated: true }),
+        100
+      );
+    };
+    socket.on("new_message", handleNewMessage);
+    return () => {
+      socket.off("new_message", handleNewMessage);
+    };
+  }, [socket, id, user?.id, friendAvatar]);
+
   const lastMessage = messages[messages.length - 1];
   const seenAvatarByMessageId = new Map<string, string>();
   if (lastMessage?.isMe) {
@@ -192,7 +278,10 @@ export default function ChatDetailScreen() {
       const messageId = messages[index].id;
       if (!theyReplied && !seenAvatarByMessageId.has(messageId)) {
         // Chuỗi rỗng = đã xem nhưng không có ảnh -> hiện avatar mặc định
-        seenAvatarByMessageId.set(messageId, seen.avatarUrl || friendAvatar || "");
+        seenAvatarByMessageId.set(
+          messageId,
+          seen.avatarUrl || friendAvatar || ""
+        );
       }
     }
   }
@@ -272,9 +361,14 @@ export default function ChatDetailScreen() {
     try {
       const saved = await sendMessageContent(id, text);
       setMessages((prev) =>
-        prev.map((m) =>
-          m.id === tempId ? mapMessageToUI(saved, user?.id, friendAvatar) : m
-        )
+        // Socket có thể đã thêm tin thật trước khi REST trả về -> chỉ bỏ tin tạm
+        prev.some((m) => m.id === String(saved.id))
+          ? prev.filter((m) => m.id !== tempId)
+          : prev.map((m) =>
+              m.id === tempId
+                ? mapMessageToUI(saved, user?.id, friendAvatar)
+                : m
+            )
       );
     } catch (error) {
       // Gửi lỗi: bỏ tin tạm và trả lại nội dung vào ô nhập để gửi lại
@@ -283,7 +377,6 @@ export default function ChatDetailScreen() {
       setInputText(text);
     }
   };
-
   const handleLike = () => {
     const likeMsg: DirectMessageItemData = {
       id: Date.now().toString(),
@@ -303,7 +396,127 @@ export default function ChatDetailScreen() {
       scrollViewRef.current?.scrollToEnd({ animated: true });
     }, 100);
   };
+  // Gửi ảnh / file: hiện ngay bằng ảnh trong máy, tải lên xong mới thay bằng tin thật
+  const sendAttachments = async (files: LocalFile[]) => {
+    if (!id || files.length === 0) return;
 
+    if (files.length > MAX_ATTACHMENTS) {
+      showError(`Chỉ được gửi tối đa ${MAX_ATTACHMENTS} file một lần.`);
+      return;
+    }
+    const tooBig = files.find((f) =>
+      f.mimeType.startsWith("image/")
+        ? (f.size ?? 0) > MAX_IMAGE_SIZE
+        : (f.size ?? 0) > MAX_FILE_SIZE
+    );
+    if (tooBig) {
+      showError(`"${tooBig.name}" quá lớn (ảnh tối đa 5MB, file tối đa 20MB).`);
+      return;
+    }
+
+    const tempId = `temp-${Date.now()}`;
+    const tempMsg: DirectMessageItemData = {
+      id: tempId,
+      senderId: "me",
+      attachments: files.map((f, index) => ({
+        id: -(index + 1),
+        url: f.uri,
+        fileName: f.name,
+        resourceType: f.mimeType.startsWith("image/") ? "image" : "raw",
+        mimeType: f.mimeType,
+        size: f.size,
+      })),
+      time: new Date().toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      }),
+      isMe: true,
+      isSent: false,
+    };
+    setMessages((prev) => [...prev, tempMsg]);
+    setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+
+    try {
+      const uploaded = await Promise.all(files.map(uploadFile));
+      const saved = await sendMessageFiles(id, uploaded);
+      setMessages((prev) =>
+        // Socket có thể đã thêm tin thật trước khi REST trả về -> chỉ bỏ tin tạm
+        prev.some((m) => m.id === String(saved.id))
+          ? prev.filter((m) => m.id !== tempId)
+          : prev.map((m) =>
+              m.id === tempId ? mapMessageToUI(saved, user?.id, friendAvatar) : m
+            )
+      );
+    } catch (error) {
+      console.warn("Gửi ảnh / file thất bại:", error);
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
+      showError(
+        error instanceof ApiError ? error.message : "Không gửi được, vui lòng thử lại."
+      );
+    }
+  };
+
+  const handlePickPhoto = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsMultipleSelection: true,
+      selectionLimit: MAX_ATTACHMENTS,
+      // < 1 để nén lại thành JPEG: ảnh nhẹ hơn và iPhone không gửi HEIC (backend không nhận)
+      quality: 0.8,
+    });
+    if (result.canceled) return;
+    sendAttachments(
+      result.assets.map((a, index) => ({
+        uri: a.uri,
+        name: a.fileName ?? `photo-${Date.now()}-${index}.jpg`,
+        mimeType: a.mimeType ?? "image/jpeg",
+        size: a.fileSize,
+        file: a.file,
+      }))
+    );
+  };
+
+  const handleAttach = async () => {
+    const result = await DocumentPicker.getDocumentAsync({
+      multiple: true,
+      copyToCacheDirectory: true,
+    });
+    if (result.canceled) return;
+    sendAttachments(
+      result.assets.map((a) => ({
+        uri: a.uri,
+        name: a.name,
+        mimeType: a.mimeType ?? "application/octet-stream",
+        size: a.size,
+        file: a.file,
+      }))
+    );
+  };
+
+  const typingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isTypingSent = useRef(false);
+
+  const handleChangeText = (text: string) => {
+    setInputText(text); // việc 1: cập nhật ô nhập
+
+    // việc 2: báo đang soạn, chỉ bắn 1 lần khi bắt đầu gõ
+    const socket = getSocket();
+    if (!socket || !id) return;
+    if (!isTypingSent.current) {
+      socket.emit("typing", { conversationId: Number(id), isTyping: true });
+      isTypingSent.current = true;
+    }
+
+    // ngừng gõ 2 giây (hoặc xoá hết chữ) thì báo dừng
+    if (typingTimeout.current) clearTimeout(typingTimeout.current);
+    const stop = () => {
+      socket.emit("typing", { conversationId: Number(id), isTyping: false });
+      isTypingSent.current = false;
+    };
+    if (!text) stop();
+    else typingTimeout.current = setTimeout(stop, 2000);
+  };
   const handleWave = () => {
     const waveMsg: DirectMessageItemData = {
       id: Date.now().toString(),
@@ -428,17 +641,20 @@ export default function ChatDetailScreen() {
         {/* 4. Khung nhập tin nhắn dưới cùng */}
         <ChatInputBar
           value={inputText}
-          onChangeText={setInputText}
+          onChangeText={handleChangeText}
           onSend={handleSend}
           onLike={handleLike}
-          onAttach={() => console.log("Đính kèm tệp")}
-          onPickPhoto={() => console.log("Chọn ảnh")}
+          onAttach={handleAttach}
+          onPickPhoto={handlePickPhoto}
           onEmojiPress={() => console.log("Chọn emoji")}
         />
       </KeyboardAvoidingView>
 
       {/* Xem ảnh toàn màn hình + nút tải về */}
-      <ImageViewerModal image={viewingImage} onClose={() => setViewingImage(null)} />
+      <ImageViewerModal
+        image={viewingImage}
+        onClose={() => setViewingImage(null)}
+      />
     </SafeAreaView>
   );
 }

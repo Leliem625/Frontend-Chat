@@ -1,6 +1,6 @@
 import { useFocusEffect, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   RefreshControl,
@@ -24,7 +24,8 @@ import {
 import { StoriesCarousel, StoryItem } from "@/components/story";
 import { useAuth } from "@/context/auth";
 import { useOnlineUsers } from "@/hook/useOnlineUser";
-import type { Conversation, User } from "@/types/api";
+import { useSocket } from "@/socket/socket";
+import type { Conversation, Message, User } from "@/types/api";
 import { formatConversationTime } from "@/utils/date";
 const INITIAL_CONVERSATIONS: ConversationItemData[] = [
   {
@@ -157,6 +158,7 @@ export default function ChatsListScreen() {
   const { user } = useAuth();
   const currentUserId = user?.id;
   const { isOnline } = useOnlineUsers();
+  const socket = useSocket();
   const [friends, setFriends] = useState<User[]>([]);
   const activeStories: StoryItem[] = friends
     .filter((f) => isOnline(f.id))
@@ -223,6 +225,44 @@ export default function ChatsListScreen() {
       loadConversations();
     }, [loadConversations])
   );
+
+  // Có tin nhắn mới qua socket: chỉ sửa đúng cuộc trò chuyện đó rồi đưa lên đầu, không gọi lại API
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleNewMessage = (msg: Message) => {
+      const isMine = msg.senderId === currentUserId;
+      const preview =
+        msg.content ||
+        (msg.type === "IMAGE" ? "[Hình ảnh]" : msg.type === "FILE" ? "[Tệp đính kèm]" : "");
+
+      setConversations((prev) => {
+        const target = prev.find((c) => c.id === String(msg.conversationId));
+        // Cuộc trò chuyện chưa có trong danh sách (vừa được tạo): để lần tải sau lấy về
+        if (!target) return prev;
+
+        const unread = isMine ? 0 : (target.unreadCount ?? 0) + 1;
+        const updated: ConversationItemData = {
+          ...target,
+          lastMessage: preview,
+          senderPrefix: isMine
+            ? "Bạn:"
+            : target.isGroup && msg.sender
+              ? `${msg.sender.username}:`
+              : undefined,
+          time: formatConversationTime(msg.createdAt),
+          unreadCount: unread > 0 ? unread : undefined,
+          isUnread: unread > 0,
+        };
+        return [updated, ...prev.filter((c) => c.id !== target.id)];
+      });
+    };
+
+    socket.on("new_message", handleNewMessage);
+    return () => {
+      socket.off("new_message", handleNewMessage);
+    };
+  }, [socket, currentUserId]);
 
   // Xử lý các sự kiện người dùng
   // Truyền kèm name/avatar/userId của đối phương sang màn chat để hiển thị ngay

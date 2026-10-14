@@ -1,10 +1,5 @@
 import { MaterialIcons } from "@expo/vector-icons";
-import React from "react";
-import {
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { TextInput, TouchableOpacity, View } from "react-native";
 
 export interface ChatInputBarProps {
   value: string;
@@ -73,7 +68,7 @@ export function ChatInputBar({
             multiline={false}
             returnKeyType="send"
             onSubmitEditing={hasContent ? onSend : undefined}
-            className="flex-1 py-1.5 text-[15px] text-slate-900"
+            className="flex-1 py-1.5 text-[15px] text-slate-900 outline-none"
           />
 
           {/* Nút chọn Emoji / Biểu tượng cảm xúc */}
@@ -96,7 +91,7 @@ export function ChatInputBar({
           onPress={handleAction}
           activeOpacity={0.8}
           accessibilityLabel={hasContent ? "Gửi tin nhắn" : "Thích"}
-          className="h-10 w-10 items-center justify-center rounded-full bg-primary shadow-xs active:scale-95"
+          className="shadow-xs h-10 w-10 items-center justify-center rounded-full bg-primary active:scale-95"
         >
           <MaterialIcons
             name={hasContent ? "send" : "thumb-up"}
