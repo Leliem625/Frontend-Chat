@@ -8,7 +8,7 @@ import {
 
 import * as authApi from "@/api/auth";
 import { setOnSessionExpired } from "@/api/client";
-import { connectSocket, disconnectSocket } from "@/socket/socket";
+import { connectSocket, disconnectSocket } from "@/socket";
 import { clearTokens, getAccessToken, saveTokens } from "@/storage/token";
 import type { User } from "@/types/api";
 
@@ -76,6 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth() {
   const value = useContext(AuthContext);
   if (!value) {

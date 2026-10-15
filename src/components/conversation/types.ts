@@ -1,4 +1,4 @@
-import { MaterialIcons } from "@expo/vector-icons";
+import type { BlockStatus } from "@/types/api";
 
 export type ConversationCategory = "direct" | "group" | "channel";
 
@@ -10,7 +10,7 @@ export interface ConversationItemData {
   isOnline?: boolean;
   userId?: number | string;
   isGroup?: boolean;
-  groupIcon?: keyof typeof MaterialIcons.glyphMap;
+  groupIcon?: string;
   lastMessage: string;
   senderPrefix?: string;
   time: string;
@@ -24,6 +24,7 @@ export interface ConversationItemData {
   isSent?: boolean;
   category: ConversationCategory;
   isFriend?: boolean;
+  blockStatus?: BlockStatus; // chat 1-1: đã chặn nhau -> khoá ô nhập tin nhắn
 }
 
 export type FilterType = "all" | "unread" | "groups" | "channels";

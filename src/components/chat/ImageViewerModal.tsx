@@ -1,10 +1,7 @@
-import { MaterialIcons } from "@expo/vector-icons";
-import { Image } from "expo-image";
-import React, { useState } from "react";
-import { ActivityIndicator, Modal, Text, TouchableOpacity, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import Toast from "react-native-toast-message";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
+import { Icon, Spinner } from "@/components/common";
 import type { Attachment } from "@/types/api";
 import { saveImageToGallery } from "@/utils/file";
 
@@ -17,65 +14,73 @@ export interface ImageViewerModalProps {
 export function ImageViewerModal({ image, onClose }: ImageViewerModalProps) {
   const [saving, setSaving] = useState(false);
 
+  // Bấm Esc để đóng
+  useEffect(() => {
+    if (!image) return;
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [image, onClose]);
+
   const handleSave = async () => {
     if (!image || saving) return;
     setSaving(true);
     try {
       await saveImageToGallery(image);
-      Toast.show({ type: "success", text1: "Đã lưu ảnh vào thư viện" });
+      toast.success("Đã tải ảnh về máy");
     } catch (error: any) {
-      Toast.show({ type: "error", text1: "Không lưu được ảnh", text2: error?.message });
+      toast.error("Không lưu được ảnh", { description: error?.message });
     } finally {
       setSaving(false);
     }
   };
 
+  if (!image) return null;
+
   return (
-    <Modal
-      visible={!!image}
-      transparent
-      animationType="fade"
-      statusBarTranslucent
-      onRequestClose={onClose}
+    <div
+      role="dialog"
+      aria-modal="true"
+      className="fixed inset-0 z-50 flex flex-col bg-black"
+      onClick={onClose}
     >
-      <View className="flex-1 bg-black">
-        <SafeAreaView className="flex-1" edges={["top", "bottom"]}>
-          {/* Thanh trên: nút đóng & nút tải về */}
-          <View className="flex-row items-center justify-between px-4 py-2">
-            <TouchableOpacity
-              onPress={onClose}
-              className="h-10 w-10 items-center justify-center rounded-full bg-white/15"
-              accessibilityLabel="Đóng"
-            >
-              <MaterialIcons name="close" size={24} color="#ffffff" />
-            </TouchableOpacity>
+      {/* Thanh trên: nút đóng & nút tải về */}
+      <div
+        className="flex flex-row items-center justify-between px-4 py-2"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Đóng"
+          className="flex h-10 w-10 items-center justify-center rounded-full bg-white/15 hover:bg-white/25"
+        >
+          <Icon name="close" size={24} color="#ffffff" />
+        </button>
 
-            <TouchableOpacity
-              onPress={handleSave}
-              disabled={saving}
-              className="flex-row items-center gap-1.5 rounded-full bg-white/15 px-4 py-2"
-              accessibilityLabel="Tải ảnh về máy"
-            >
-              {saving ? (
-                <ActivityIndicator size="small" color="#ffffff" />
-              ) : (
-                <MaterialIcons name="file-download" size={20} color="#ffffff" />
-              )}
-              <Text className="text-[14px] font-semibold text-white">Tải về</Text>
-            </TouchableOpacity>
-          </View>
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={saving}
+          aria-label="Tải ảnh về máy"
+          className="flex flex-row items-center gap-1.5 rounded-full bg-white/15 px-4 py-2 text-white hover:bg-white/25"
+        >
+          {saving ? <Spinner size={18} /> : <Icon name="file-download" size={20} />}
+          <span className="text-[14px] font-semibold">Tải về</span>
+        </button>
+      </div>
 
-          {/* Ảnh hiển thị vừa màn hình */}
-          {image && (
-            <Image
-              source={{ uri: image.url }}
-              style={{ flex: 1 }}
-              contentFit="contain"
-              transition={150}
-            />
-          )}
-        </SafeAreaView>
-      </View>
-    </Modal>
+      {/* Ảnh hiển thị vừa màn hình (bấm ra ngoài ảnh để đóng) */}
+      <div className="flex min-h-0 flex-1 items-center justify-center p-2">
+        <img
+          src={image.url}
+          alt={image.fileName ?? ""}
+          className="max-h-full max-w-full object-contain"
+          onClick={(e) => e.stopPropagation()}
+        />
+      </div>
+    </div>
   );
 }

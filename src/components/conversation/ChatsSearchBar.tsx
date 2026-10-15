@@ -1,5 +1,4 @@
-import { MaterialIcons } from "@expo/vector-icons";
-import { TextInput, TouchableOpacity, View } from "react-native";
+import { Icon } from "@/components/common";
 
 export interface ChatsSearchBarProps {
   value: string;
@@ -15,25 +14,25 @@ export function ChatsSearchBar({
   placeholder = "Tìm kiếm trên đoạn chat hoặc tin nhắn...",
 }: ChatsSearchBarProps) {
   return (
-    <View className="px-4 pb-2 pt-1">
-      <View className="h-11 flex-row items-center rounded-full bg-slate-100 px-3.5">
-        <MaterialIcons name="search" size={20} color="#94a3b8" />
-        <TextInput
-          className="ml-2.5 h-full flex-1 text-[14px] text-slate-900"
+    <div className="px-4 pb-2 pt-1">
+      <div className="flex h-11 flex-row items-center rounded-full bg-slate-100 px-3.5">
+        <Icon name="search" size={20} color="#94a3b8" />
+        <input
+          type="search"
+          className="ml-2.5 h-full min-w-0 flex-1 bg-transparent text-[14px] text-slate-900 outline-none placeholder:text-slate-400"
           placeholder={placeholder}
-          placeholderTextColor="#94a3b8"
           value={value}
-          onChangeText={onChangeText}
-          clearButtonMode="while-editing"
+          onChange={(e) => onChangeText(e.target.value)}
         />
-        <TouchableOpacity
-          onPress={onVoiceSearchPress}
-          activeOpacity={0.7}
-          className="p-1"
+        <button
+          type="button"
+          onClick={onVoiceSearchPress}
+          aria-label="Tìm kiếm bằng giọng nói"
+          className="p-1 transition active:opacity-70"
         >
-          <MaterialIcons name="mic" size={19} color="#94a3b8" />
-        </TouchableOpacity>
-      </View>
-    </View>
+          <Icon name="mic" size={19} color="#94a3b8" />
+        </button>
+      </div>
+    </div>
   );
 }

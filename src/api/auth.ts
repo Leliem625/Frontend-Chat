@@ -1,5 +1,4 @@
 import { api, post } from "@/api/client";
-import { getRefreshToken } from "@/storage/token";
 import type { LoginResponse, User } from "@/types/api";
 
 export function login(email: string, password: string) {
@@ -14,12 +13,9 @@ export function getMe() {
   return api<User>("/api/auth/me");
 }
 
-export async function logout() {
-  const refreshToken = await getRefreshToken();
-  return api<void>("/api/auth/logout", {
-    method: "POST",
-    headers: refreshToken ? { Cookie: `refreshToken=${refreshToken}` } : {},
-  });
+// Backend đọc refresh token từ cookie httpOnly đã đặt lúc đăng nhập (api() gửi kèm cookie)
+export function logout() {
+  return post<void>("/api/auth/logout");
 }
 export async function sendOtp(email: string) {
   return post<void>("/api/auth/send-otp", { email });

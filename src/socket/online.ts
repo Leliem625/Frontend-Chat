@@ -1,4 +1,6 @@
-import type { Socket } from "socket.io-client";
+import { useSyncExternalStore } from "react";
+
+import type { AppSocket } from "./events";
 
 // Danh sách user đang online dùng chung cho cả app.
 // Backend chỉ gửi "online_users" 1 lần lúc vừa kết nối, nên phải nghe ngay khi tạo socket
@@ -11,14 +13,14 @@ function update(next: Set<number>) {
   listeners.forEach((listener) => listener());
 }
 
-export function attachOnlineListeners(socket: Socket) {
-  socket.on("online_users", (userIds: number[]) => {
+export function attachOnlineListeners(socket: AppSocket) {
+  socket.on("online_users", (userIds) => {
     update(new Set(userIds.map(Number)));
   });
-  socket.on("user_online", (data: { userId: number }) => {
+  socket.on("user_online", (data) => {
     update(new Set(onlineUserIds).add(Number(data.userId)));
   });
-  socket.on("user_offline", (data: { userId: number }) => {
+  socket.on("user_offline", (data) => {
     const next = new Set(onlineUserIds);
     next.delete(Number(data.userId));
     update(next);
@@ -38,4 +40,16 @@ export function subscribeOnlineUsers(listener: () => void) {
 
 export function getOnlineUserIds() {
   return onlineUserIds;
+}
+
+// Dùng trong component: danh sách online + hàm kiểm tra 1 người có online không
+export function useOnlineUsers() {
+  const onlineUserIds = useSyncExternalStore(subscribeOnlineUsers, getOnlineUserIds);
+
+  const isOnline = (userId?: number | string | null): boolean => {
+    if (!userId) return false;
+    return onlineUserIds.has(Number(userId));
+  };
+
+  return { onlineUserIds, isOnline };
 }

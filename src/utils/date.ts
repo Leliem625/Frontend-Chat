@@ -46,3 +46,18 @@ export function formatConversationTime(dateStr?: string | null): string {
     return "";
   }
 }
+
+/**
+ * Thời gian tương đối cho thông báo: "Vừa xong", "5 phút", "3 giờ", "2 ngày", quá 1 tuần thì hiện ngày.
+ */
+export function formatRelativeTime(dateStr?: string | null): string {
+  if (!dateStr) return "";
+  const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return "";
+  const seconds = Math.max(0, (Date.now() - date.getTime()) / 1000);
+  if (seconds < 60) return "Vừa xong";
+  if (seconds < 3600) return `${Math.floor(seconds / 60)} phút`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)} giờ`;
+  if (seconds < 7 * 86400) return `${Math.floor(seconds / 86400)} ngày`;
+  return date.toLocaleDateString("vi-VN");
+}

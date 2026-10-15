@@ -33,3 +33,8 @@ export function sendMessageFiles(
     content: content || undefined,
   });
 }
+
+// Thu hồi tin nhắn mình đã gửi (backend xoá nội dung + file, báo socket "message_recalled" cho mọi người)
+export function recallMessage(messageId: number | string) {
+  return post<Message>(`/api/message/${messageId}/recall`);
+}

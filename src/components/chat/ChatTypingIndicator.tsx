@@ -1,8 +1,4 @@
-import { Image } from "expo-image";
-import React, { useEffect, useState } from "react";
-import { Animated, StyleSheet, View } from "react-native";
-
-import { DefaultAvatar } from "@/components/common";
+import { Avatar } from "@/components/common";
 
 export interface ChatTypingIndicatorProps {
   avatar?: string | null;
@@ -10,84 +6,29 @@ export interface ChatTypingIndicatorProps {
   visible?: boolean;
 }
 
-export function ChatTypingIndicator({
-  avatar,
-  name = "Bạn bè",
-  visible = true,
-}: ChatTypingIndicatorProps) {
-  const [dot1] = useState(() => new Animated.Value(0));
-  const [dot2] = useState(() => new Animated.Value(0));
-  const [dot3] = useState(() => new Animated.Value(0));
+// 3 chấm nảy lệch nhau 150ms (thay cho Animated của React Native)
+const DOT_DELAYS = [0, 150, 300];
 
-  useEffect(() => {
-    if (!visible) return;
-
-    const createAnimation = (anim: Animated.Value, delay: number) => {
-      return Animated.loop(
-        Animated.sequence([
-          Animated.delay(delay),
-          Animated.timing(anim, {
-            toValue: -5,
-            duration: 350,
-            useNativeDriver: true,
-          }),
-          Animated.timing(anim, {
-            toValue: 0,
-            duration: 350,
-            useNativeDriver: true,
-          }),
-        ])
-      );
-    };
-
-    const anim1 = createAnimation(dot1, 0);
-    const anim2 = createAnimation(dot2, 150);
-    const anim3 = createAnimation(dot3, 300);
-
-    anim1.start();
-    anim2.start();
-    anim3.start();
-
-    return () => {
-      anim1.stop();
-      anim2.stop();
-      anim3.stop();
-    };
-  }, [visible, dot1, dot2, dot3]);
-
+export function ChatTypingIndicator({ avatar, name = "Bạn bè", visible = true }: ChatTypingIndicatorProps) {
   if (!visible) return null;
 
   return (
-    <View className="mb-3 flex-row items-end gap-2 pt-1">
+    <div className="mb-3 flex flex-row items-end gap-2 pt-1" aria-label={`${name} đang soạn tin`}>
       {/* Avatar người đang soạn */}
-      <View className="mb-0.5 h-7 w-7 shrink-0 overflow-hidden rounded-full">
-        {avatar ? (
-          <Image
-            source={{ uri: avatar }}
-            style={{ width: 28, height: 28, borderRadius: 14 }}
-            contentFit="cover"
-          />
-        ) : (
-          <DefaultAvatar size={28} />
-        )}
-      </View>
+      <div className="mb-0.5 h-7 w-7 shrink-0 overflow-hidden rounded-full">
+        <Avatar uri={avatar} size={28} />
+      </div>
 
       {/* Bong bóng 3 chấm nhấp nháy */}
-      <View className="h-9 w-16 flex-row items-center justify-center gap-1.5 rounded-[18px] rounded-bl-xs bg-slate-100 px-3 shadow-xs">
-        <Animated.View style={[styles.dot, { transform: [{ translateY: dot1 }] }]} />
-        <Animated.View style={[styles.dot, { transform: [{ translateY: dot2 }] }]} />
-        <Animated.View style={[styles.dot, { transform: [{ translateY: dot3 }] }]} />
-      </View>
-    </View>
+      <div className="flex h-9 w-16 flex-row items-center justify-center gap-1.5 rounded-[18px] rounded-bl-[4px] bg-slate-100 px-3 shadow-sm">
+        {DOT_DELAYS.map((delay) => (
+          <span
+            key={delay}
+            className="h-2 w-2 animate-bounce rounded-full bg-slate-500"
+            style={{ animationDelay: `${delay}ms`, animationDuration: "900ms" }}
+          />
+        ))}
+      </div>
+    </div>
   );
 }
-
-// Chấm dùng style thường: className không áp được lên Animated.View
-const styles = StyleSheet.create({
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: "#64748b", // slate-500
-  },
-});

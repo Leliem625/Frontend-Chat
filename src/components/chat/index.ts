@@ -8,3 +8,6 @@ export * from "./ChatDateDivider";
 export * from "./ChatAttachments";
 export * from "./ImageViewerModal";
 export * from "./ChatEmptyConversation";
+export * from "./WebChatEmptyState";
+export * from "./WebChatPane";
+export * from "./WebChatInfoSidebar";

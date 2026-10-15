@@ -1,10 +1,5 @@
-import { MaterialIcons } from "@expo/vector-icons";
-import { Image } from "expo-image";
-import { Text, TouchableOpacity, View } from "react-native";
-
-import { DefaultAvatar } from "@/components/common";
-
-const APP_LOGO = require("../../../assets/images/messenger_app_icon.png");
+import APP_LOGO from "@/assets/messenger_app_icon.png";
+import { Avatar, Icon } from "@/components/common";
 
 export interface ChatsHeaderProps {
   avatarUrl?: string;
@@ -20,55 +15,50 @@ export function ChatsHeader({
   onProfilePress,
 }: ChatsHeaderProps) {
   return (
-    <View className="h-16 flex-row items-center justify-between px-4">
+    <header className="flex h-16 shrink-0 flex-row items-center justify-between px-4">
       {/* Logo & Tiêu đề */}
-      <View className="flex-row items-center gap-2.5">
-        <Image
-          source={APP_LOGO}
-          style={{ width: 34, height: 34 }}
-          contentFit="contain"
+      <div className="flex flex-row items-center gap-2.5">
+        <img
+          src={APP_LOGO}
+          alt=""
+          style={{ width: 34, height: 34, objectFit: "contain" }}
         />
-        <Text className="text-[20px] font-bold tracking-tight text-slate-900">
+        <h1 className="text-[20px] font-bold tracking-tight text-slate-900">
           Đoạn chat
-        </Text>
-      </View>
+        </h1>
+      </div>
 
       {/* Cụm action bên phải */}
-      <View className="flex-row items-center gap-1.5">
-        <TouchableOpacity
-          onPress={onCameraPress}
-          activeOpacity={0.7}
-          className="h-10 w-10 items-center justify-center rounded-full bg-slate-100"
+      <div className="flex flex-row items-center gap-1.5">
+        <button
+          type="button"
+          onClick={onCameraPress}
+          aria-label="Máy ảnh"
+          className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 transition hover:bg-slate-200 active:opacity-70"
         >
-          <MaterialIcons name="photo-camera" size={21} color="#475569" />
-        </TouchableOpacity>
+          <Icon name="photo-camera" size={21} color="#475569" />
+        </button>
 
-        <TouchableOpacity
-          onPress={onNewChatPress}
-          activeOpacity={0.7}
-          className="h-10 w-10 items-center justify-center rounded-full bg-slate-100"
+        <button
+          type="button"
+          onClick={onNewChatPress}
+          aria-label="Tin nhắn mới"
+          className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 transition hover:bg-slate-200 active:opacity-70"
         >
-          <MaterialIcons name="edit" size={20} color="#475569" />
-        </TouchableOpacity>
+          <Icon name="edit" size={20} color="#475569" />
+        </button>
 
-        <TouchableOpacity
-          onPress={onProfilePress}
-          activeOpacity={0.7}
-          className="ml-1"
+        <button
+          type="button"
+          onClick={onProfilePress}
+          aria-label="Trang cá nhân"
+          className="ml-1 transition active:opacity-70"
         >
-          <View className="h-9 w-9 overflow-hidden rounded-full border-2 border-primary/20">
-            {avatarUrl ? (
-              <Image
-                source={{ uri: avatarUrl }}
-                style={{ width: "100%", height: "100%" }}
-                contentFit="cover"
-              />
-            ) : (
-              <DefaultAvatar size={34} />
-            )}
-          </View>
-        </TouchableOpacity>
-      </View>
-    </View>
+          <div className="h-9 w-9 overflow-hidden rounded-full border-2 border-primary/20">
+            <Avatar uri={avatarUrl} size={34} />
+          </div>
+        </button>
+      </div>
+    </header>
   );
 }

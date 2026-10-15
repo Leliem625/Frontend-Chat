@@ -1,7 +1,4 @@
-import { MaterialIcons } from "@expo/vector-icons";
-import { Text, TouchableOpacity, View } from "react-native";
-
-import { Avatar, StatusChat } from "@/components/common";
+import { Avatar, Icon, StatusChat } from "@/components/common";
 
 export interface ChatProfileBarProps {
   name: string;
@@ -18,92 +15,78 @@ export function ChatProfileBar({
   name,
   avatar,
   isOnline = true,
-  isVerified = true,
   onBack,
   onCall,
   onVideoCall,
   onInfo,
 }: ChatProfileBarProps) {
   return (
-    <View className="shadow-xs mb-2 flex-row items-center justify-between border-b border-slate-100 bg-white px-3 py-2.5">
+    <div className="mb-2 flex shrink-0 flex-row items-center justify-between border-b border-slate-100 bg-white px-3 py-2.5 shadow-sm">
       {/* Thông tin đối phương */}
-      <View className="min-w-0 flex-1 flex-row items-center gap-2.5">
+      <div className="flex min-w-0 flex-1 flex-row items-center gap-2.5">
         {onBack && (
-          <TouchableOpacity
-            onPress={onBack}
-            activeOpacity={0.7}
-            accessibilityLabel="Quay lại"
-            className="h-9 w-9 items-center justify-center rounded-full active:bg-slate-100"
+          <button
+            type="button"
+            onClick={onBack}
+            aria-label="Quay lại"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full hover:bg-slate-100 active:bg-slate-100"
           >
-            <MaterialIcons name="arrow-back-ios-new" size={18} color="#1e293b" />
-          </TouchableOpacity>
+            <Icon name="arrow-back-ios-new" size={18} color="#1e293b" />
+          </button>
         )}
 
-        <View className="relative h-12 w-12 shrink-0">
+        <div className="relative h-12 w-12 shrink-0">
           <Avatar uri={avatar} size={48} isOnline={false} />
           {/* StatusChat ở góc Avatar */}
           <StatusChat status={isOnline ? "online" : "offline"} size={13} />
-        </View>
+        </div>
 
-        <View className="min-w-0 flex-1 justify-center">
-          <View className="flex-row items-center gap-1">
-            <Text
-              numberOfLines={1}
-              className="text-[17px] font-bold text-slate-900"
-            >
-              {name}
-            </Text>
-            {/* {isVerified && (
-              <MaterialIcons name="verified" size={16} color="#0084ff" />
-            )} */}
-          </View>
+        <div className="flex min-w-0 flex-1 flex-col justify-center">
+          <div className="flex flex-row items-center gap-1">
+            <span className="truncate text-[17px] font-bold text-slate-900">{name}</span>
+          </div>
 
-          <View className="mt-0.5 flex-row items-center gap-1.5">
-            {/* <View
-              className={`h-2 w-2 rounded-full ${
-                isOnline ? "bg-emerald-500" : "bg-slate-400"
-              }`}
-            /> */}
-            <Text
+          <div className="mt-0.5 flex flex-row items-center gap-1.5">
+            <span
               className={`text-[12px] font-medium ${
                 isOnline ? "text-emerald-600" : "text-slate-400"
               }`}
             >
               {isOnline ? "Đang hoạt động" : "Không hoạt động"}
-            </Text>
-          </View>
-        </View>
-      </View>
+            </span>
+          </div>
+        </div>
+      </div>
 
       {/* Các nút hành động phụ: Call, Video, Info */}
-      <View className="flex-row items-center gap-1.5">
-        <TouchableOpacity
-          onPress={onCall}
-          activeOpacity={0.7}
-          accessibilityLabel="Gọi thoại"
-          className="h-10 w-10 items-center justify-center rounded-full bg-slate-100 active:scale-95"
+      <div className="flex flex-row items-center gap-1.5">
+        <button
+          type="button"
+          onClick={onCall}
+          aria-label="Gọi thoại"
+          className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 active:scale-95"
         >
-          <MaterialIcons name="call" size={20} color="#0084ff" />
-        </TouchableOpacity>
+          <Icon name="call" size={20} color="#0084ff" />
+        </button>
 
-        <TouchableOpacity
-          onPress={onVideoCall}
-          activeOpacity={0.7}
-          accessibilityLabel="Gọi video"
-          className="h-10 w-10 items-center justify-center rounded-full bg-slate-100 active:scale-95"
+        <button
+          type="button"
+          onClick={onVideoCall}
+          aria-label="Gọi video"
+          className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 active:scale-95"
         >
-          <MaterialIcons name="videocam" size={20} color="#0084ff" />
-        </TouchableOpacity>
+          <Icon name="videocam" size={20} color="#0084ff" />
+        </button>
 
-        <TouchableOpacity
-          onPress={onInfo}
-          activeOpacity={0.7}
-          accessibilityLabel="Thông tin hội thoại"
-          className="h-10 w-10 items-center justify-center rounded-full bg-slate-100 active:scale-95"
+        <button
+          type="button"
+          onClick={onInfo}
+          aria-label="Thông tin hội thoại"
+          className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 active:scale-95"
         >
-          <MaterialIcons name="info-outline" size={20} color="#64748b" />
-        </TouchableOpacity>
-      </View>
-    </View>
+          <Icon name="info-outline" size={20} color="#64748b" />
+        </button>
+      </div>
+    </div>
   );
 }

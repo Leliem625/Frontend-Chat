@@ -18,3 +18,8 @@ export function createGroupConversation(name: string, memberIds: number[]) {
     memberIds,
   });
 }
+
+// Số cuộc trò chuyện còn tin chưa đọc (badge trên tab Đoạn chat)
+export function getUnreadConversationCount() {
+  return get<{ count: number }>("/api/conversation/unread-count");
+}

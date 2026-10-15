@@ -1,12 +1,8 @@
-import { MaterialIcons } from "@expo/vector-icons";
-import { Image } from "expo-image";
-import React from "react";
-import { Text, TouchableOpacity, View } from "react-native";
-
-import { DefaultAvatar } from "@/components/common";
+import { Avatar, Icon } from "@/components/common";
 import type { Attachment } from "@/types/api";
+
 import { ChatAttachments } from "./ChatAttachments";
-import { DirectMessageItemData } from "./types";
+import type { DirectMessageItemData } from "./types";
 
 export interface ChatMessageItemProps {
   message: DirectMessageItemData;
@@ -40,144 +36,130 @@ export function ChatMessageItem({
   if (isMe) {
     // Tin nhắn của tôi (Gửi đi - Nằm bên phải)
     return (
-      <View className="mb-3 max-w-[82%] self-end items-end">
+      <div className="mb-3 flex max-w-[82%] flex-col items-end self-end">
         {/* Ảnh / file đính kèm */}
         {attachments && attachments.length > 0 && (
-          <View className={text ? "mb-1" : undefined}>
-            <ChatAttachments attachments={attachments} isMe onImagePress={onImagePress} />
-          </View>
+          <div className={text ? "mb-1" : undefined}>
+            <ChatAttachments
+              attachments={attachments}
+              isMe
+              status={message.status}
+              errorMessage={message.errorMessage}
+              onRetry={message.onRetry}
+              onImagePress={onImagePress}
+            />
+          </div>
         )}
 
         {/* Bong bóng tin nhắn gửi đi */}
         {text && (
-          <View className="rounded-[18px] rounded-br-xs bg-primary px-4 py-2.5 shadow-xs">
-            <Text className="text-[15px] font-normal leading-5 text-white">
+          <div className="rounded-[18px] rounded-br-[4px] bg-primary px-4 py-2.5 shadow-sm">
+            <p className="whitespace-pre-wrap break-words text-[15px] font-normal leading-5 text-white">
               {text}
-            </Text>
-          </View>
+            </p>
+          </div>
         )}
 
         {/* Trạng thái tin nhắn gửi đi: Thời gian & Icon đã gửi / Avatar đã xem */}
-        <View className="mt-1 flex-row items-center gap-1.5 px-1">
-          <Text className="text-[11px] text-slate-400">
+        <div className="mt-1 flex flex-row items-center gap-1.5 px-1">
+          <span className="text-[11px] text-slate-400">
             {time}
-            {isSent && !isSeen && " • Đã gửi"}
-          </Text>
+            {message.status === "sending"
+              ? " • Đang gửi..."
+              : message.status === "failed"
+              ? " • Gửi lỗi"
+              : isSent && !isSeen
+              ? " • Đã gửi"
+              : ""}
+          </span>
 
           {isSeen ? (
             // Badge avatar nhỏ xíu của đối phương khi đã xem
-            <View
-              className="h-4 w-4 overflow-hidden rounded-full border border-white shadow-xs"
-              accessibilityLabel={`Đã xem lúc ${seenTime || time}`}
+            <span
+              className="h-4 w-4 overflow-hidden rounded-full border border-white shadow-sm"
+              title={`Đã xem lúc ${seenTime || time}`}
+              aria-label={`Đã xem lúc ${seenTime || time}`}
             >
-              {seenAvatar ? (
-                <Image
-                  source={{ uri: seenAvatar }}
-                  style={{ width: 16, height: 16, borderRadius: 8 }}
-                  contentFit="cover"
-                />
-              ) : (
-                <DefaultAvatar size={16} />
-              )}
-            </View>
+              <Avatar uri={seenAvatar} size={14} />
+            </span>
+          ) : message.status === "failed" ? (
+            <Icon name="error" size={13} className="text-error" />
           ) : isSent ? (
-            <MaterialIcons name="check-circle" size={13} color="#0084ff" />
+            <Icon name="check-circle" size={13} color="#0084ff" />
           ) : null}
-        </View>
-      </View>
+        </div>
+      </div>
     );
   }
 
   // Tin nhắn của đối phương (Nhận - Nằm bên trái)
   return (
-    <View className="mb-3 max-w-[84%] flex-row items-end gap-2">
+    <div className="mb-3 flex max-w-[84%] flex-row items-end gap-2">
       {/* Avatar nhỏ của người gửi */}
-      <View className="mb-0.5 h-7 w-7 shrink-0 overflow-hidden rounded-full">
-        {avatar ? (
-          <Image
-            source={{ uri: avatar }}
-            style={{ width: 28, height: 28, borderRadius: 14 }}
-            contentFit="cover"
-          />
-        ) : (
-          <DefaultAvatar size={28} />
-        )}
-      </View>
+      <div className="mb-0.5 h-7 w-7 shrink-0 overflow-hidden rounded-full">
+        <Avatar uri={avatar} size={28} />
+      </div>
 
-      <View className="min-w-0 flex-1 items-start gap-1">
+      <div className="flex min-w-0 flex-1 flex-col items-start gap-1">
         {/* Đính kèm ảnh / Media nếu có */}
         {mediaUrl && (
-          <TouchableOpacity
-            onPress={() => onMediaPress?.(mediaUrl)}
-            activeOpacity={0.9}
-            className="w-full max-w-[260px] overflow-hidden rounded-[20px] rounded-bl-xs bg-slate-100 shadow-xs"
+          <button
+            type="button"
+            onClick={() => onMediaPress?.(mediaUrl)}
+            className="w-full max-w-[260px] overflow-hidden rounded-[20px] rounded-bl-[4px] bg-slate-100 shadow-sm"
           >
-            <View className="relative h-44 w-full">
-              <Image
-                source={{ uri: mediaUrl }}
-                style={{ width: "100%", height: "100%" }}
-                contentFit="cover"
-              />
+            <div className="relative h-44 w-full">
+              <img src={mediaUrl} alt="" className="h-full w-full object-cover" />
 
               {/* Gradient & Thông tin địa điểm / HD Badge */}
-              <View className="absolute bottom-2 left-3 right-3 flex-row items-center justify-between">
+              <div className="absolute bottom-2 left-3 right-3 flex flex-row items-center justify-between">
                 {locationName && (
-                  <View className="flex-row items-center gap-1 rounded-full bg-black/40 px-2 py-0.5 backdrop-blur-xs">
-                    <MaterialIcons name="location-on" size={13} color="#ffffff" />
-                    <Text className="text-[11px] font-medium text-white">
-                      {locationName}
-                    </Text>
-                  </View>
+                  <span className="flex flex-row items-center gap-1 rounded-full bg-black/40 px-2 py-0.5 backdrop-blur-sm">
+                    <Icon name="location-on" size={13} color="#ffffff" />
+                    <span className="text-[11px] font-medium text-white">{locationName}</span>
+                  </span>
                 )}
-                <View className="rounded-full bg-black/50 px-2 py-0.5">
-                  <Text className="text-[10px] font-bold text-white">HD</Text>
-                </View>
-              </View>
-            </View>
-          </TouchableOpacity>
+                <span className="rounded-full bg-black/50 px-2 py-0.5">
+                  <span className="text-[10px] font-bold text-white">HD</span>
+                </span>
+              </div>
+            </div>
+          </button>
         )}
 
         {/* Ảnh / file đính kèm */}
         {attachments && attachments.length > 0 && (
-          <ChatAttachments
-            attachments={attachments}
-            isMe={false}
-            onImagePress={onImagePress}
-          />
+          <ChatAttachments attachments={attachments} isMe={false} onImagePress={onImagePress} />
         )}
 
         {/* Nội dung tin nhắn văn bản */}
         {text && (
-          <View className="rounded-[18px] rounded-bl-xs bg-slate-100 px-4 py-2.5 shadow-xs">
-            <Text className="text-[15px] font-normal leading-5 text-slate-900">
+          <div className="max-w-full rounded-[18px] rounded-bl-[4px] bg-slate-100 px-4 py-2.5 shadow-sm">
+            <p className="whitespace-pre-wrap break-words text-[15px] font-normal leading-5 text-slate-900">
               {text}
-            </Text>
-          </View>
+            </p>
+          </div>
         )}
 
         {/* Thanh Reaction nhanh (nếu có biểu cảm) */}
         {reactions && reactions.length > 0 && (
-          <View className="-mt-2 ml-2 flex-row items-center gap-1 rounded-full border border-slate-100 bg-white px-2 py-0.5 shadow-sm">
+          <div className="-mt-2 ml-2 flex flex-row items-center gap-1 rounded-full border border-slate-100 bg-white px-2 py-0.5 shadow-sm">
             {reactions.map((r, idx) => (
-              <TouchableOpacity
-                key={idx}
-                onPress={() => onReactionPress?.(r.emoji)}
-                activeOpacity={0.7}
-              >
-                <Text className="text-[13px]">{r.emoji}</Text>
-              </TouchableOpacity>
+              <button type="button" key={idx} onClick={() => onReactionPress?.(r.emoji)}>
+                <span className="text-[13px]">{r.emoji}</span>
+              </button>
             ))}
             {reactions[0]?.count && reactions[0].count > 1 && (
-              <Text className="text-[11px] font-semibold text-slate-500">
+              <span className="text-[11px] font-semibold text-slate-500">
                 {reactions.reduce((sum, item) => sum + (item.count || 1), 0)}
-              </Text>
+              </span>
             )}
-          </View>
+          </div>
         )}
 
         {/* Thời gian nhận */}
-        <Text className="mt-0.5 px-1 text-[11px] text-slate-400">{time}</Text>
-      </View>
-    </View>
+        <span className="mt-0.5 px-1 text-[11px] text-slate-400">{time}</span>
+      </div>
+    </div>
   );
 }

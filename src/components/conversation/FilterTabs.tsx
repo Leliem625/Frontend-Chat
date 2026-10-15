@@ -1,6 +1,4 @@
-import { ScrollView, Text, TouchableOpacity, View } from "react-native";
-
-import { FilterType } from "./types";
+import type { FilterType } from "./types";
 
 export interface FilterTabsProps {
   activeFilter: FilterType;
@@ -16,34 +14,26 @@ const TABS: { id: FilterType; label: string }[] = [
 
 export function FilterTabs({ activeFilter, onSelectFilter }: FilterTabsProps) {
   return (
-    <View className="px-4 py-2">
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ gap: 8 }}
-      >
+    <div className="px-4 py-2">
+      <div className="flex flex-row gap-2 overflow-x-auto [scrollbar-width:none]">
         {TABS.map((tab) => {
           const isActive = activeFilter === tab.id;
           return (
-            <TouchableOpacity
+            <button
+              type="button"
               key={tab.id}
-              onPress={() => onSelectFilter(tab.id)}
-              activeOpacity={0.8}
-              className={`rounded-full px-4 py-1.5 ${
-                isActive ? "bg-primary shadow-sm" : "bg-slate-100"
+              onClick={() => onSelectFilter(tab.id)}
+              className={`shrink-0 rounded-full px-4 py-1.5 text-[13px] font-semibold transition active:opacity-80 ${
+                isActive
+                  ? "bg-primary text-white shadow-sm"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
               }`}
             >
-              <Text
-                className={`text-[13px] font-semibold ${
-                  isActive ? "text-white" : "text-slate-600"
-                }`}
-              >
-                {tab.label}
-              </Text>
-            </TouchableOpacity>
+              {tab.label}
+            </button>
           );
         })}
-      </ScrollView>
-    </View>
+      </div>
+    </div>
   );
 }

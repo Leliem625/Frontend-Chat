@@ -1,5 +1,3 @@
-import React from "react";
-import { View } from "react-native";
 import { cn } from "@/utils/cn";
 
 export interface StatusChatProps {
@@ -10,6 +8,7 @@ export interface StatusChatProps {
   className?: string;
 }
 
+// Chấm trạng thái ở góc avatar (cha phải có position: relative)
 export const StatusChat = ({
   status,
   size = 14,
@@ -20,24 +19,14 @@ export const StatusChat = ({
   const isOnline = status === "online";
 
   return (
-    <View
-      className={cn(
-        "absolute -bottom-0.5 -right-0.5 rounded-full border-2 border-white",
-        isOnline ? "bg-accent-green" : "bg-gray-400",
-        className
-      )}
+    <span
+      className={cn("absolute z-20 rounded-full border-2 border-white shadow-sm", className)}
       style={{
-        position: "absolute",
         bottom,
         right,
         width: size,
         height: size,
-        borderRadius: size / 2,
-        borderWidth: 2,
-        borderColor: "#ffffff",
         backgroundColor: isOnline ? "#10b981" : "#94a3b8",
-        zIndex: 20,
-        elevation: 5,
       }}
     />
   );

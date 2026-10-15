@@ -1,5 +1,4 @@
 import { API_URL } from "@/config";
-// import { getAccessToken } from "@/storage/token";
 import {
   clearTokens,
   getAccessToken,
@@ -18,7 +17,7 @@ export class ApiError extends Error {
 }
 
 // Gọi API backend: tự gắn access token, trả về phần `data`, ném ApiError khi backend báo lỗi.
-// TODO: khi nhận 401 thì gọi /api/auth/refresh-token để lấy access token mới rồi gọi lại.
+// Nhận 401 thì gọi /api/auth/refresh-token để lấy access token mới rồi gọi lại 1 lần.
 export async function api<T>(
   path: string,
   options: RequestInit = {},
@@ -30,6 +29,7 @@ export async function api<T>(
   let response: Response;
   try {
     response = await fetch(API_URL + path, {
+      credentials: "include", // gửi kèm cookie refreshToken backend đặt lúc đăng nhập
       ...options,
       headers: {
         ...(isFormData ? {} : { "Content-Type": "application/json" }),
@@ -55,7 +55,7 @@ export async function api<T>(
     await clearTokens();
     onSessionExpired?.();
     throw new ApiError(
-      "Phi√™n ƒëƒÉng nh·∫≠p ƒë√£ h·∫øt h·∫°n, vui l√≤ng ƒëƒÉng nh·∫≠p l·∫°i",
+      "Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại",
       401
     );
   }
@@ -90,11 +90,19 @@ export function post<T>(path: string, body?: unknown) {
   });
 }
 
-export function get<T>(path: string, body?: unknown) {
+export function get<T>(path: string) {
+  return api<T>(path, { method: "GET" });
+}
+
+export function put<T>(path: string, body?: unknown) {
   return api<T>(path, {
-    method: "GET",
+    method: "PUT",
     body: body === undefined ? undefined : JSON.stringify(body),
   });
+}
+
+export function del<T>(path: string) {
+  return api<T>(path, { method: "DELETE" });
 }
 const NO_REFRESH_PATHS = [
   "/api/auth/login",
@@ -102,7 +110,7 @@ const NO_REFRESH_PATHS = [
   "/api/auth/refresh-token",
 ];
 
-// AuthProvider ƒëƒÉng k√Ω h√†m n√†y ƒë·ªÉ b·ªã ƒëƒÉng xu·∫•t khi refresh token c≈©ng h·∫øt h·∫°n
+// AuthProvider đăng ký hàm này để bị đăng xuất khi refresh token cũng hết hạn
 let onSessionExpired: (() => void) | null = null;
 export function setOnSessionExpired(callback: () => void) {
   onSessionExpired = callback;
@@ -121,6 +129,7 @@ async function refreshToken(): Promise<string | null> {
           body: JSON.stringify({ refreshToken }),
         });
         const json = await response.json().catch(() => null);
+        if (!response.ok || !json?.data?.accessToken) return null;
         await saveAccessToken(json.data.accessToken);
         return json.data.accessToken as string;
       } catch {
